@@ -1,6 +1,6 @@
-const API_URL = 'https://retailsystem-1.onrender.com/api/items';
-const AUTH_URL = 'http://localhost:5000/api/auth';
-
+const BASE_URL = 'https://retailsystem-1.onrender.com';
+const API_URL = `${BASE_URL}/api/items`;
+const AUTH_URL = `${BASE_URL}/api/auth`;
 // DOM Elements
 const itemsGrid = document.getElementById('itemsGrid');
 const sellForm = document.getElementById('sellForm');
