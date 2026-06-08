@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000/api/items';
+const API_URL = 'https://retailsystem-1.onrender.com/api/items';
 const AUTH_URL = 'http://localhost:5000/api/auth';
 
 // DOM Elements
