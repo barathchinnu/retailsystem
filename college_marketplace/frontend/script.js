@@ -36,11 +36,19 @@ function updateAuthUI() {
     const user = getUser();
     document.querySelectorAll('.auth-logged-out').forEach(el => el.style.display = user ? 'none' : 'list-item');
     document.querySelectorAll('.auth-logged-in').forEach(el => el.style.display = user ? 'list-item' : 'none');
+
+    // Admin dashboard link only when logged in (still protected by admin key in dashboard)
+    const adminLinkBtn = document.getElementById('adminLinkBtn');
+    if (adminLinkBtn) {
+        adminLinkBtn.style.display = user ? 'list-item' : 'none';
+    }
+
     if (user) {
         const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
         userGreeting.innerHTML = `<i class="fas fa-user-circle"></i> Hi, ${user.name.split(' ')[0]}${badge}`;
     }
 }
+
 
 // ─── Auth Modal ────────────────────────────────────────────────────────────────
 openLoginBtn.addEventListener('click', e => { e.preventDefault(); switchToTab('login'); authModal.style.display = 'flex'; });
@@ -466,9 +474,11 @@ async function openChat(itemId) {
 
 async function loadChatMessages(chatId) {
     try {
+        const start = performance.now();
         const res = await fetch(`${CHAT_URL}/${chatId}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
         const result = await res.json();
         if (!result.success) return;
+        console.log('[Chat] load duration(ms):', Math.round(performance.now() - start), 'status:', res.status, 'msgs:', result.data?.messages?.length);
 
         const chat = result.data;
         const me = getUser();
@@ -606,15 +616,22 @@ async function openRatePanel() {
         if (!selectedScore) { showToast('Please select a star rating.'); return; }
         const comment = document.getElementById('rateComment').value;
         try {
+            console.log('[Rate] submitting', { activeChatId, ratedUserId: other._id, score: selectedScore });
             const r = await fetch(`${BASE_URL}/api/ratings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
                 body: JSON.stringify({ chatId: activeChatId, ratedUserId: other._id, score: selectedScore, comment })
             });
-            const rr = await r.json();
+            const rrText = await r.text();
+            let rr;
+            try { rr = JSON.parse(rrText); } catch { rr = { success: false, error: rrText }; }
+            console.log('[Rate] response', { status: r.status, body: rr });
             overlay.remove();
-            showToast(rr.success ? `⭐ Rating submitted! Thanks.` : '❌ ' + rr.error);
-        } catch { showToast('❌ Could not submit rating.'); }
+            showToast(rr.success ? `⭐ Rating submitted! Thanks.` : `❌ ${rr.error || 'Rating failed'}`);
+        } catch (err) {
+            console.error('[Rate] submit error', err);
+            showToast('❌ Could not submit rating. Check console for details.');
+        }
     });
 }
 

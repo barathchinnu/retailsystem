@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard - College Marketplace</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Minimal admin-only styling (kept inline to avoid changing style.css too much) */
+    .admin-wrapper{max-width:1100px;margin:0 auto;padding:110px 20px 60px;background:#f8fafc;}
+    .admin-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.04);padding:16px;margin-top:16px;}
+    .admin-title{font-size:1.4rem;font-weight:800;color:#111827;margin:0 0 12px;display:flex;align-items:center;gap:10px;}
+    .admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+    .kpi{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:12px;padding:14px;}
+    .kpi .label{opacity:.9;font-size:.85rem;}
+    .kpi .value{font-size:1.6rem;font-weight:900;margin-top:6px;}
+    table{width:100%;border-collapse:collapse;margin-top:10px;}
+    th,td{border-bottom:1px solid #e5e7eb;padding:10px;text-align:left;font-size:.95rem;}
+    th{color:#374151;font-weight:800;background:#f9fafb;}
+    .muted{color:#6b7280;}
+    .btn{cursor:pointer;border:none;border-radius:10px;padding:10px 14px;font-weight:700;}
+    .btn-primary{background:#6366f1;color:#fff;}
+    .btn-danger{background:#ef4444;color:#fff;}
+    .btn-ghost{background:#f3f4f6;color:#111827;}
+    .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    input[type='password']{padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;width:min(360px,100%);}
+    .hidden{display:none;}
+    .admin-chat-item{padding:12px;border:1px solid #e5e7eb;border-radius:12px;margin-top:10px;background:#fff;}
+    .pill{background:#eef2ff;border:1px solid #e0e7ff;color:#3730a3;border-radius:999px;padding:6px 10px;font-size:.85rem;font-weight:800;display:inline-block;}
+  </style>
+</head>
+<body>
+  <div class="admin-wrapper">
+    <div class="admin-card">
+      <div class="admin-title"><i class="fas fa-user-shield"></i> Admin Dashboard</div>
+
+      <div id="adminAuthBox" class="row">
+        <input id="adminKeyInput" type="password" placeholder="Enter admin key (x-admin-key)" />
+        <button class="btn btn-primary" id="adminLoginBtn">Login</button>
+        <button class="btn btn-ghost" id="adminClearBtn" type="button">Clear</button>
+      </div>
+
+      <div id="adminAuthError" class="muted" style="margin-top:10px;color:#dc2626;display:none"></div>
+
+      <div id="adminContent" class="hidden">
+        <div class="admin-grid" style="margin-top:14px">
+          <div class="kpi"><div class="label">Total Users</div><div class="value" id="kpiUsers">0</div></div>
+          <div class="kpi"><div class="label">Total Items</div><div class="value" id="kpiItems">0</div></div>
+          <div class="kpi"><div class="label">Total Chats</div><div class="value" id="kpiChats">0</div></div>
+          <div class="kpi"><div class="label">Flagged Chats</div><div class="value" id="kpiFlagged">0</div></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-clipboard-list"></i> Top Sellers</div>
+          <div id="topSellers" class="muted">Loading...</div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-flag"></i> Flagged Chats</div>
+          <div id="flaggedChats" class="muted">Loading...</div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-users"></i> Users</div>
+          <div id="usersBox" class="muted">Loading...</div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-file-alt"></i> Flagged Chat Details</div>
+          <div id="chatDetails" class="muted">Select a chat from the flagged list.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_URL = 'https://retailsystem-1.onrender.com';
+
+    const ADMIN_KEY_STORAGE = 'admin_key';
+
+    const $ = (id) => document.getElementById(id);
+
+    function setAuthUI(authed){
+      $('adminAuthBox').style.display = authed ? 'none' : 'flex';
+      $('adminAuthError').style.display = 'none';
+      $('adminContent').classList.toggle('hidden', !authed);
+    }
+
+    async function api(path, method='GET', body=null){
+      const key = localStorage.getItem(ADMIN_KEY_STORAGE);
+      const headers = { 'x-admin-key': key };
+      if (body) headers['Content-Type'] = 'application/json';
+      const res = await fetch(`${BASE_URL}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const result = await res.json().catch(()=>({success:false,error:'Bad JSON'}));
+      return { res, result };
+    }
+
+    function renderTopSellers(top){
+      if(!top || top.length===0){ $('topSellers').textContent='No sellers yet.'; return; }
+      $('topSellers').innerHTML = top.map(s=>`
+        <div class="admin-chat-item" style="margin-top:10px">
+          <div style="font-weight:900">${s.name} <span class="pill">${s.department}</span></div>
+          <div class="muted">Verified: ${s.isVerified ? 'Yes' : 'No'}</div>
+          <div>Rating: <b>${s.rating}</b> <span class="muted">(${s.ratingCount} reviews)</span></div>
+        </div>
+      `).join('');
+    }
+
+    function renderFlaggedChats(chats){
+      if(!chats || chats.length===0){ $('flaggedChats').textContent='No flagged chats.'; return; }
+      $('flaggedChats').innerHTML = chats.map(c=>`
+        <div class="admin-chat-item">
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div style="font-weight:900">${c.itemId?.title || 'Item'}</div>
+              <div class="muted">Buyer: ${c.buyerId?.email || c.buyerId?.name} • Seller: ${c.sellerId?.email || c.sellerId?.name}</div>
+              <div class="muted">Reason: ${c.flagReason || ''}</div>
+            </div>
+            <button class="btn btn-ghost" onclick="window.__openChatDetails('${c._id}')">Open</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderUsers(users){
+      if(!users){ $('usersBox').textContent='No users.'; return; }
+      $('usersBox').innerHTML = `
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Verified</th><th>Action</th></tr></thead>
+          <tbody>
+            ${users.map(u=>`
+              <tr>
+                <td>${u.name}</td>
+                <td>${u.email}</td>
+                <td>${u.department || ''}</td>
+                <td>${u.isVerified ? '✅ Verified' : '❌ Not verified'}</td>
+                <td>
+                  <button class="btn btn-primary" style="padding:8px 12px" onclick="window.__toggleVerify('${u._id}')">Toggle</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function loadAll(){
+      const { result } = await api('/api/admin/stats');
+      if(!result?.success) throw new Error(result?.error || 'Admin stats failed');
+
+      const d = result.data;
+      $('kpiUsers').textContent = d.totalUsers;
+      $('kpiItems').textContent = d.totalItems;
+      $('kpiChats').textContent = d.totalChats;
+      $('kpiFlagged').textContent = d.flaggedChats;
+      renderTopSellers(d.topSellers);
+
+      const flaggedRes = await api('/api/admin/flagged');
+      if(!flaggedRes.result?.success) throw new Error(flaggedRes.result?.error || 'Flagged chats failed');
+      renderFlaggedChats(flaggedRes.result.data);
+
+      const usersRes = await api('/api/admin/users');
+      if(!usersRes.result?.success) throw new Error(usersRes.result?.error || 'Users failed');
+      renderUsers(usersRes.result.data);
+
+      $('chatDetails').textContent = 'Select a chat from the flagged list.';
+    }
+
+    window.__openChatDetails = async function(chatId){
+      const { result } = await api(`/api/admin/chats/${chatId}`);
+      if(!result?.success){ $('chatDetails').textContent = result?.error || 'Failed to load chat'; return; }
+      const c = result.data;
+      $('chatDetails').innerHTML = `
+        <div><b>Chat ID:</b> ${c._id}</div>
+        <div class="muted" style="margin-top:6px"><b>Item:</b> ${c.itemId?.title}</div>
+        <div class="muted"><b>Buyer:</b> ${c.buyerId?.email || ''} (${c.buyerId?.name || ''})</div>
+        <div class="muted"><b>Seller:</b> ${c.sellerId?.email || ''} (${c.sellerId?.name || ''})</div>
+        <div style="margin-top:10px"><b>Flag reason:</b> ${c.flagReason || ''}</div>
+        <div style="margin-top:10px"><b>Messages:</b> ${c.messages?.length || 0}</div>
+      `;
+    }
+
+    window.__toggleVerify = async function(userId){
+      const { result } = await api(`/api/admin/users/${userId}/verify`, 'PATCH');
+      if(!result?.success){ alert(result?.error || 'Failed to toggle'); return; }
+      await loadAll();
+    }
+
+    $('adminLoginBtn').addEventListener('click', async ()=>{
+      const key = $('adminKeyInput').value.trim();
+      if(!key) return;
+      localStorage.setItem(ADMIN_KEY_STORAGE, key);
+      try{
+        setAuthUI(true);
+        await loadAll();
+      }catch(e){
+        setAuthUI(false);
+        $('adminAuthError').textContent = e.message;
+        $('adminAuthError').style.display='block';
+      }
+    });
+
+    $('adminClearBtn').addEventListener('click', ()=>{
+      localStorage.removeItem(ADMIN_KEY_STORAGE);
+      $('adminKeyInput').value='';
+      setAuthUI(false);
+      $('chatDetails').textContent='Select a chat from the flagged list.';
+    });
+
+    // auto-load if key already set
+    (function init(){
+      const existing = localStorage.getItem(ADMIN_KEY_STORAGE);
+      if(existing){
+        setAuthUI(true);
+        loadAll().catch(()=>setAuthUI(false));
+      }else{
+        setAuthUI(false);
+      }
+    })();
+  </script>
+</body>
+</html>
+
