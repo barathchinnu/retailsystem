@@ -5,124 +5,164 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-const Item = require('./models/Item');
-const User = require('./models/User');
-
 const app = express();
 
-// Middleware
-app.use(cors({
-    origin: '*'
-}));
-
+app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 
-// MongoDB Connection
-const MONGODB_URI =
-    process.env.MONGODB_URI ||
-    'mongodb://127.0.0.1:27017/college_marketplace';
-
-const JWT_SECRET =
-    process.env.JWT_SECRET ||
-    'kongu_marketplace_secret_2026';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/college_marketplace';
+const JWT_SECRET = process.env.JWT_SECRET || 'kongu_marketplace_secret_2026';
+const ADMIN_KEY = process.env.ADMIN_KEY || 'admin_kongu_2026'; // set in .env for production
 
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
-    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+    .catch(err => console.error('❌ MongoDB Error:', err));
 
-// Root Route
-app.get('/', (req, res) => {
-    res.json({
-        success: true,
-        message: 'College Marketplace Backend Running 🚀'
-    });
+// ═══════════════════════════════════════════════════
+//  SCHEMAS
+// ═══════════════════════════════════════════════════
+
+// ── User ──────────────────────────────────────────
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    department: { type: String, required: true },
+    // Ratings
+    ratingTotal: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
+    // Verification (manual admin flag)
+    isVerified: { type: Boolean, default: false },
+    // Admin
+    isAdmin: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
 });
 
-// Auth Middleware
+userSchema.virtual('rating').get(function () {
+    return this.ratingCount > 0
+        ? Math.round((this.ratingTotal / this.ratingCount) * 10) / 10
+        : null;
+});
+
+const User = mongoose.model('User', userSchema);
+
+// ── Item ──────────────────────────────────────────
+const itemSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    category: { type: String, required: true },
+    price: { type: Number, required: true },
+    condition: { type: String, required: true },
+    description: { type: String, required: true },
+    seller_name: { type: String, required: true },
+    department: { type: String, required: true },
+    year: { type: String, required: true },
+    seller_phone: { type: String, required: true },  // stored but never returned publicly
+    seller_email: { type: String, required: true },
+    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    image: { type: String },
+    isSold: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Item = mongoose.model('Item', itemSchema);
+
+// ── Chat ──────────────────────────────────────────
+const messageSchema = new mongoose.Schema({
+    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    senderName: { type: String, required: true },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const chatSchema = new mongoose.Schema({
+    itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+    buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    messages: [messageSchema],
+    phoneRevealed: { type: Boolean, default: false },  // seller approved phone reveal
+    flagged: { type: Boolean, default: false },
+    flagReason: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Chat = mongoose.model('Chat', chatSchema);
+
+// ── Rating ────────────────────────────────────────
+const ratingSchema = new mongoose.Schema({
+    chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chat', required: true },
+    raterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    ratedId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    score: { type: Number, min: 1, max: 5, required: true },
+    comment: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Rating = mongoose.model('Rating', ratingSchema);
+
+// ═══════════════════════════════════════════════════
+//  MIDDLEWARE
+// ═══════════════════════════════════════════════════
+
 function authMiddleware(req, res, next) {
     const token = req.headers['authorization']?.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({
-            success: false,
-            error: 'Access denied. Please login first.'
-        });
-    }
-
+    if (!token) return res.status(401).json({ success: false, error: 'Please login first.' });
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
+        req.user = jwt.verify(token, JWT_SECRET);
         next();
-    } catch (err) {
-        return res.status(401).json({
-            success: false,
-            error: 'Invalid or expired session. Please login again.'
-        });
+    } catch {
+        return res.status(401).json({ success: false, error: 'Session expired. Please login again.' });
     }
 }
 
-// ================= AUTH ROUTES =================
+function adminMiddleware(req, res, next) {
+    const key = req.headers['x-admin-key'];
+    if (key !== ADMIN_KEY) return res.status(403).json({ success: false, error: 'Admin access denied.' });
+    next();
+}
+
+// ═══════════════════════════════════════════════════
+//  AUTH ROUTES
+// ═══════════════════════════════════════════════════
+
+app.get('/', (req, res) => res.json({ success: true, message: 'CampusSwap V2 API 🚀' }));
 
 // Register
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { name, email, password, department } = req.body;
 
-        if (!email || !email.toLowerCase().endsWith('@kongu.edu')) {
-            return res.status(400).json({
-                success: false,
-                error: 'Only @kongu.edu email addresses are allowed.'
-            });
-        }
+        if (!email?.toLowerCase().endsWith('@kongu.edu'))
+            return res.status(400).json({ success: false, error: 'Only @kongu.edu emails are allowed.' });
 
-        const existing = await User.findOne({
-            email: email.toLowerCase()
-        });
-
-        if (existing) {
-            return res.status(400).json({
-                success: false,
-                error: 'An account with this email already exists.'
-            });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
+        if (await User.findOne({ email: email.toLowerCase() }))
+            return res.status(400).json({ success: false, error: 'Account already exists with this email.' });
 
         const user = new User({
             name,
             email: email.toLowerCase(),
-            password: hashedPassword,
+            password: await bcrypt.hash(password, 10),
             department
         });
-
         await user.save();
 
         const token = jwt.sign(
-            {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                department: user.department
-            },
-            JWT_SECRET,
-            { expiresIn: '7d' }
+            { id: user._id, name: user.name, email: user.email, department: user.department },
+            JWT_SECRET, { expiresIn: '7d' }
         );
 
         res.status(201).json({
             success: true,
             token,
             user: {
+                id: user._id,
                 name: user.name,
                 email: user.email,
-                department: user.department
+                department: user.department,
+                isVerified: user.isVerified
             }
         });
-
     } catch (err) {
-        res.status(400).json({
-            success: false,
-            error: err.message
-        });
+        res.status(400).json({ success: false, error: err.message });
     }
 });
 
@@ -130,153 +170,411 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase() });
 
-        const user = await User.findOne({
-            email: email.toLowerCase()
-        });
-
-        if (!user) {
-            return res.status(400).json({
-                success: false,
-                error: 'No account found with this email.'
-            });
-        }
-
-        const isMatch = await bcrypt.compare(
-            password,
-            user.password
-        );
-
-        if (!isMatch) {
-            return res.status(400).json({
-                success: false,
-                error: 'Incorrect password.'
-            });
-        }
+        if (!user) return res.status(400).json({ success: false, error: 'No account found with this email.' });
+        if (!await bcrypt.compare(password, user.password))
+            return res.status(400).json({ success: false, error: 'Incorrect password.' });
 
         const token = jwt.sign(
-            {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                department: user.department
-            },
-            JWT_SECRET,
-            { expiresIn: '7d' }
+            { id: user._id, name: user.name, email: user.email, department: user.department },
+            JWT_SECRET, { expiresIn: '7d' }
         );
 
         res.json({
             success: true,
             token,
             user: {
+                id: user._id,
                 name: user.name,
                 email: user.email,
-                department: user.department
+                department: user.department,
+                isVerified: user.isVerified
             }
         });
-
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// ================= ITEM ROUTES =================
+// ═══════════════════════════════════════════════════
+//  ITEM ROUTES
+// ═══════════════════════════════════════════════════
 
-// Get All Items
+// Get all items (phone NEVER included)
 app.get('/api/items', async (req, res) => {
     try {
         const { search, category } = req.query;
-
-        let query = {};
-
-        if (category) {
-            query.category = category;
-        }
-
-        if (search) {
-            query.$or = [
-                {
-                    title: {
-                        $regex: search,
-                        $options: 'i'
-                    }
-                },
-                {
-                    description: {
-                        $regex: search,
-                        $options: 'i'
-                    }
-                }
-            ];
-        }
+        const query = {};
+        if (category) query.category = category;
+        if (search) query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } }
+        ];
 
         const items = await Item.find(query)
+            .select('-seller_phone')   // ← phone hidden from public list
             .sort({ createdAt: -1 });
 
-        res.json({
-            success: true,
-            data: items
-        });
-
+        res.json({ success: true, data: items });
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Get Single Item
+// Get single item (phone still hidden)
 app.get('/api/items/:id', async (req, res) => {
     try {
-        const item = await Item.findById(req.params.id);
+        const item = await Item.findById(req.params.id).select('-seller_phone');
+        if (!item) return res.status(404).json({ success: false, error: 'Item not found' });
+        res.json({ success: true, data: item });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 
-        if (!item) {
-            return res.status(404).json({
-                success: false,
-                error: 'Item not found'
-            });
+// Post item (auth required)
+app.post('/api/items', authMiddleware, async (req, res) => {
+    try {
+        const item = new Item({ ...req.body, sellerId: req.user.id });
+        const saved = await item.save();
+        res.status(201).json({ success: true, data: saved });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  CHAT ROUTES
+// ═══════════════════════════════════════════════════
+
+// Start or get existing chat for item+buyer
+app.post('/api/chats', authMiddleware, async (req, res) => {
+    try {
+        const { itemId } = req.body;
+        const buyerId = req.user.id;
+
+        const item = await Item.findById(itemId).select('sellerId seller_name title');
+        if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
+        if (item.sellerId?.toString() === buyerId)
+            return res.status(400).json({ success: false, error: "You can't chat on your own listing." });
+
+        let chat = await Chat.findOne({ itemId, buyerId });
+
+        if (!chat) {
+            chat = new Chat({ itemId, buyerId, sellerId: item.sellerId, messages: [] });
+            await chat.save();
         }
+
+        res.json({ success: true, data: chat });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get messages in a chat (buyer or seller only)
+app.get('/api/chats/:chatId', authMiddleware, async (req, res) => {
+    try {
+        const chat = await Chat.findById(req.params.chatId)
+            .populate('itemId', 'title price image category')
+            .populate('buyerId', 'name department ratingTotal ratingCount isVerified')
+            .populate('sellerId', 'name department ratingTotal ratingCount isVerified');
+
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
+
+        const uid = req.user.id;
+        if (chat.buyerId._id.toString() !== uid && chat.sellerId._id.toString() !== uid)
+            return res.status(403).json({ success: false, error: 'Access denied.' });
+
+        // Attach computed rating to populated users
+        const withRating = (u) => ({
+            _id: u._id,
+            name: u.name,
+            department: u.department,
+            isVerified: u.isVerified,
+            rating: u.ratingCount > 0 ? Math.round((u.ratingTotal / u.ratingCount) * 10) / 10 : null,
+            ratingCount: u.ratingCount
+        });
 
         res.json({
             success: true,
-            data: item
+            data: {
+                ...chat.toObject(),
+                buyerId: withRating(chat.buyerId),
+                sellerId: withRating(chat.sellerId)
+            }
         });
-
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: err.message
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Add Item
-app.post('/api/items', authMiddleware, async (req, res) => {
+// Get all chats for the logged-in user
+app.get('/api/chats', authMiddleware, async (req, res) => {
     try {
-        const newItem = new Item(req.body);
+        const uid = req.user.id;
+        const chats = await Chat.find({ $or: [{ buyerId: uid }, { sellerId: uid }] })
+            .populate('itemId', 'title price image')
+            .populate('buyerId', 'name')
+            .populate('sellerId', 'name')
+            .sort({ 'messages.-1.createdAt': -1, createdAt: -1 });
 
-        const savedItem = await newItem.save();
-
-        res.status(201).json({
-            success: true,
-            data: savedItem
-        });
-
+        res.json({ success: true, data: chats });
     } catch (err) {
-        res.status(400).json({
-            success: false,
-            error: err.message
-        });
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Server Start
-const PORT = process.env.PORT || 5000;
+// Send message
+app.post('/api/chats/:chatId/messages', authMiddleware, async (req, res) => {
+    try {
+        const chat = await Chat.findById(req.params.chatId);
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+        const uid = req.user.id;
+        if (chat.buyerId.toString() !== uid && chat.sellerId.toString() !== uid)
+            return res.status(403).json({ success: false, error: 'Access denied.' });
+
+        const msg = { senderId: uid, senderName: req.user.name, text: req.body.text };
+        chat.messages.push(msg);
+        await chat.save();
+
+        res.json({ success: true, data: chat.messages[chat.messages.length - 1] });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
+
+// ═══════════════════════════════════════════════════
+//  PHONE REVEAL ROUTE
+// ═══════════════════════════════════════════════════
+//  Rules:
+//  • Seller can approve at any time
+//  • Buyer can request auto-reveal after sending 5+ messages
+//  • Revealed phone is only returned inside this endpoint (not the item listing)
+
+app.post('/api/chats/:chatId/reveal-phone', authMiddleware, async (req, res) => {
+    try {
+        const chat = await Chat.findById(req.params.chatId);
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
+
+        const uid = req.user.id;
+        const isSeller = chat.sellerId.toString() === uid;
+        const isBuyer = chat.buyerId.toString() === uid;
+
+        if (!isBuyer && !isSeller)
+            return res.status(403).json({ success: false, error: 'Access denied.' });
+
+        // Count messages sent by the buyer
+        const buyerMsgCount = chat.messages.filter(m => m.senderId.toString() === chat.buyerId.toString()).length;
+
+        // Seller approves manually OR buyer has 5+ messages
+        if (isSeller || buyerMsgCount >= 5) {
+            chat.phoneRevealed = true;
+            await chat.save();
+
+            const item = await Item.findById(chat.itemId).select('seller_phone');
+            return res.json({ success: true, phone: item.seller_phone });
+        }
+
+        // Not enough messages yet
+        const remaining = 5 - buyerMsgCount;
+        res.json({
+            success: false,
+            error: `Send ${remaining} more message${remaining > 1 ? 's' : ''} to unlock the seller's number.`,
+            buyerMsgCount,
+            required: 5
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  RATING ROUTES
+// ═══════════════════════════════════════════════════
+
+// Submit rating after a deal
+app.post('/api/ratings', authMiddleware, async (req, res) => {
+    try {
+        const { chatId, ratedUserId, score, comment } = req.body;
+        const raterId = req.user.id;
+
+        if (score < 1 || score > 5)
+            return res.status(400).json({ success: false, error: 'Score must be 1–5.' });
+
+        const chat = await Chat.findById(chatId);
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
+        if (chat.buyerId.toString() !== raterId && chat.sellerId.toString() !== raterId)
+            return res.status(403).json({ success: false, error: 'You are not part of this chat.' });
+
+        // Prevent double rating
+        if (await Rating.findOne({ chatId, raterId }))
+            return res.status(400).json({ success: false, error: 'You have already rated this deal.' });
+
+        const rating = new Rating({ chatId, raterId, ratedId: ratedUserId, score, comment });
+        await rating.save();
+
+        // Update user aggregate
+        await User.findByIdAndUpdate(ratedUserId, {
+            $inc: { ratingTotal: score, ratingCount: 1 }
+        });
+
+        res.status(201).json({ success: true, message: 'Rating submitted! ⭐' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get ratings for a user
+app.get('/api/users/:userId/ratings', async (req, res) => {
+    try {
+        const ratings = await Rating.find({ ratedId: req.params.userId })
+            .populate('raterId', 'name department')
+            .sort({ createdAt: -1 });
+
+        const user = await User.findById(req.params.userId).select('name ratingTotal ratingCount isVerified');
+        if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+
+        res.json({
+            success: true,
+            data: {
+                user: {
+                    name: user.name,
+                    isVerified: user.isVerified,
+                    rating: user.ratingCount > 0 ? Math.round((user.ratingTotal / user.ratingCount) * 10) / 10 : null,
+                    ratingCount: user.ratingCount
+                },
+                reviews: ratings
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  REPORT ROUTE
+// ═══════════════════════════════════════════════════
+
+app.post('/api/chats/:chatId/report', authMiddleware, async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const chat = await Chat.findById(req.params.chatId);
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
+
+        const uid = req.user.id;
+        if (chat.buyerId.toString() !== uid && chat.sellerId.toString() !== uid)
+            return res.status(403).json({ success: false, error: 'Access denied.' });
+
+        chat.flagged = true;
+        chat.flagReason = reason || 'No reason provided';
+        await chat.save();
+
+        res.json({ success: true, message: 'Chat reported. Admin will review shortly.' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  ADMIN ROUTES  (protected by x-admin-key header)
+// ═══════════════════════════════════════════════════
+
+// Dashboard stats
+app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
+    try {
+        const [totalUsers, totalItems, totalChats, flaggedChats] = await Promise.all([
+            User.countDocuments(),
+            Item.countDocuments(),
+            Chat.countDocuments(),
+            Chat.countDocuments({ flagged: true })
+        ]);
+
+        const topSellers = await User.find({ ratingCount: { $gt: 0 } })
+            .select('name department ratingTotal ratingCount isVerified')
+            .sort({ ratingTotal: -1 })
+            .limit(5);
+
+        res.json({
+            success: true,
+            data: {
+                totalUsers,
+                totalItems,
+                totalChats,
+                flaggedChats,
+                topSellers: topSellers.map(u => ({
+                    name: u.name,
+                    department: u.department,
+                    isVerified: u.isVerified,
+                    rating: Math.round((u.ratingTotal / u.ratingCount) * 10) / 10,
+                    ratingCount: u.ratingCount
+                }))
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// View flagged chats
+app.get('/api/admin/flagged', adminMiddleware, async (req, res) => {
+    try {
+        const chats = await Chat.find({ flagged: true })
+            .populate('itemId', 'title')
+            .populate('buyerId', 'name email')
+            .populate('sellerId', 'name email')
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, data: chats });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// View a specific chat (admin only — only flagged ones)
+app.get('/api/admin/chats/:chatId', adminMiddleware, async (req, res) => {
+    try {
+        const chat = await Chat.findById(req.params.chatId)
+            .populate('itemId', 'title price')
+            .populate('buyerId', 'name email department')
+            .populate('sellerId', 'name email department');
+
+        if (!chat) return res.status(404).json({ success: false, error: 'Chat not found.' });
+        if (!chat.flagged) return res.status(403).json({ success: false, error: 'Only flagged chats can be reviewed.' });
+
+        res.json({ success: true, data: chat });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Toggle verified badge for a user
+app.patch('/api/admin/users/:userId/verify', adminMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId);
+        if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+        user.isVerified = !user.isVerified;
+        await user.save();
+        res.json({ success: true, message: `User ${user.isVerified ? 'verified ✔' : 'unverified'}` });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// List all users
+app.get('/api/admin/users', adminMiddleware, async (req, res) => {
+    try {
+        const users = await User.find().select('-password').sort({ createdAt: -1 });
+        res.json({ success: true, data: users });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 CampusSwap V2 running on port ${PORT}`));

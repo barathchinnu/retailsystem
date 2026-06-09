@@ -1,17 +1,20 @@
-const BASE_URL = 'https://retailsystem-1.onrender.com';
+// ═══════════════════════════════════════════════════
+//  CampusSwap V2 — script.js
+// ═══════════════════════════════════════════════════
+
+const BASE_URL = 'https://retailsystem-1.onrender.com';   // ← change to your V2 deploy URL
 const API_URL = `${BASE_URL}/api/items`;
 const AUTH_URL = `${BASE_URL}/api/auth`;
-// DOM Elements
+const CHAT_URL = `${BASE_URL}/api/chats`;
+
+// ─── DOM ───────────────────────────────────────────────────────────────────────
 const itemsGrid = document.getElementById('itemsGrid');
 const sellForm = document.getElementById('sellForm');
 const navSearchInput = document.getElementById('navSearchInput');
-const navLocation = document.getElementById('navLocation');
 const categoryPills = document.querySelectorAll('.pill');
 const itemModal = document.getElementById('itemModal');
 const modalBody = document.getElementById('modalBody');
 const closeBtn = document.querySelector('#itemModal .close');
-
-// Auth DOM Elements
 const authModal = document.getElementById('authModal');
 const authModalClose = document.getElementById('authModalClose');
 const loginTab = document.getElementById('loginTab');
@@ -26,282 +29,172 @@ const logoutBtn = document.getElementById('logoutBtn');
 const userGreeting = document.getElementById('userGreeting');
 
 // ─── Auth State ────────────────────────────────────────────────────────────────
-
 function getToken() { return localStorage.getItem('token'); }
-function getUser() { 
-    const u = localStorage.getItem('user'); 
-    return u ? JSON.parse(u) : null; 
-}
+function getUser() { const u = localStorage.getItem('user'); return u ? JSON.parse(u) : null; }
 
 function updateAuthUI() {
     const user = getUser();
-    const loggedOutEls = document.querySelectorAll('.auth-logged-out');
-    const loggedInEls = document.querySelectorAll('.auth-logged-in');
-
+    document.querySelectorAll('.auth-logged-out').forEach(el => el.style.display = user ? 'none' : 'list-item');
+    document.querySelectorAll('.auth-logged-in').forEach(el => el.style.display = user ? 'list-item' : 'none');
     if (user) {
-        loggedOutEls.forEach(el => el.style.display = 'none');
-        loggedInEls.forEach(el => el.style.display = 'list-item');
-        userGreeting.innerHTML = `<i class="fas fa-user-circle"></i> Hi, ${user.name.split(' ')[0]}`;
-    } else {
-        loggedOutEls.forEach(el => el.style.display = 'list-item');
-        loggedInEls.forEach(el => el.style.display = 'none');
+        const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
+        userGreeting.innerHTML = `<i class="fas fa-user-circle"></i> Hi, ${user.name.split(' ')[0]}${badge}`;
     }
 }
 
-// ─── Auth Modal Controls ───────────────────────────────────────────────────────
+// ─── Auth Modal ────────────────────────────────────────────────────────────────
+openLoginBtn.addEventListener('click', e => { e.preventDefault(); switchToTab('login'); authModal.style.display = 'flex'; });
+openRegisterBtn.addEventListener('click', e => { e.preventDefault(); switchToTab('register'); authModal.style.display = 'flex'; });
+authModalClose.addEventListener('click', () => { authModal.style.display = 'none'; clearAuthErrors(); });
 
-openLoginBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    switchToTab('login');
-    authModal.style.display = 'block';
-});
-
-openRegisterBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    switchToTab('register');
-    authModal.style.display = 'block';
-});
-
-authModalClose.addEventListener('click', () => {
-    authModal.style.display = 'none';
-    clearAuthErrors();
-});
-
-window.addEventListener('click', (e) => {
-    if (e.target === authModal) {
-        authModal.style.display = 'none';
-        clearAuthErrors();
-    }
-    if (e.target === itemModal) {
-        itemModal.style.display = 'none';
-    }
+window.addEventListener('click', e => {
+    if (e.target === authModal) { authModal.style.display = 'none'; clearAuthErrors(); }
+    if (e.target === itemModal) { itemModal.style.display = 'none'; }
 });
 
 function switchToTab(tab) {
-    if (tab === 'login') {
-        loginTab.classList.add('active');
-        registerTab.classList.remove('active');
-        loginForm.style.display = 'block';
-        registerForm.style.display = 'none';
-    } else {
-        registerTab.classList.add('active');
-        loginTab.classList.remove('active');
-        registerForm.style.display = 'block';
-        loginForm.style.display = 'none';
-    }
+    const isLogin = tab === 'login';
+    loginTab.classList.toggle('active', isLogin);
+    registerTab.classList.toggle('active', !isLogin);
+    loginForm.style.display = isLogin ? 'block' : 'none';
+    registerForm.style.display = !isLogin ? 'block' : 'none';
     clearAuthErrors();
 }
-
 loginTab.addEventListener('click', () => switchToTab('login'));
 registerTab.addEventListener('click', () => switchToTab('register'));
 
-function showError(el, msg) {
-    el.textContent = msg;
-    el.classList.add('show');
-}
-
-function clearAuthErrors() {
-    loginError.classList.remove('show');
-    registerError.classList.remove('show');
-}
+function showError(el, msg) { el.textContent = msg; el.classList.add('show'); }
+function clearAuthErrors() { loginError.classList.remove('show'); registerError.classList.remove('show'); }
 
 // ─── Login ─────────────────────────────────────────────────────────────────────
-
-loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    clearAuthErrors();
-
+loginForm.addEventListener('submit', async e => {
+    e.preventDefault(); clearAuthErrors();
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
-
     try {
-        const res = await fetch(`${AUTH_URL}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
+        const res = await fetch(`${AUTH_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const result = await res.json();
-
         if (result.success) {
             localStorage.setItem('token', result.token);
             localStorage.setItem('user', JSON.stringify(result.user));
             authModal.style.display = 'none';
             loginForm.reset();
             updateAuthUI();
-            alert('✅ Login successful! Welcome back, ' + result.user.name);
-        } else {
-            showError(loginError, result.error);
-        }
-    } catch (err) {
-        showError(loginError, 'Could not connect to server.');
-    }
+            showToast(`✅ Welcome back, ${result.user.name.split(' ')[0]}!`);
+        } else { showError(loginError, result.error); }
+    } catch { showError(loginError, 'Could not connect to server.'); }
 });
 
 // ─── Register ──────────────────────────────────────────────────────────────────
-
-registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    clearAuthErrors();
-
+registerForm.addEventListener('submit', async e => {
+    e.preventDefault(); clearAuthErrors();
     const name = document.getElementById('registerName').value;
     const email = document.getElementById('registerEmail').value;
     const department = document.getElementById('registerDept').value;
     const password = document.getElementById('registerPassword').value;
     const confirm = document.getElementById('registerConfirm').value;
-
-    // Client-side validations
-    if (!email.toLowerCase().endsWith('@kongu.edu')) {
-        showError(registerError, 'Only @kongu.edu email addresses are allowed.');
-        return;
-    }
-    if (password !== confirm) {
-        showError(registerError, 'Passwords do not match.');
-        return;
-    }
-
+    if (!email.toLowerCase().endsWith('@kongu.edu')) { showError(registerError, 'Only @kongu.edu emails are allowed.'); return; }
+    if (password !== confirm) { showError(registerError, 'Passwords do not match.'); return; }
     try {
-        const res = await fetch(`${AUTH_URL}/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password, department })
-        });
+        const res = await fetch(`${AUTH_URL}/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, department }) });
         const result = await res.json();
-
         if (result.success) {
             localStorage.setItem('token', result.token);
             localStorage.setItem('user', JSON.stringify(result.user));
             authModal.style.display = 'none';
             registerForm.reset();
             updateAuthUI();
-            alert('✅ Account created! Welcome, ' + result.user.name);
-        } else {
-            showError(registerError, result.error);
-        }
-    } catch (err) {
-        showError(registerError, 'Could not connect to server.');
-    }
+            showToast(`🎉 Account created! Welcome, ${result.user.name.split(' ')[0]}!`);
+        } else { showError(registerError, result.error); }
+    } catch { showError(registerError, 'Could not connect to server.'); }
 });
 
 // ─── Logout ────────────────────────────────────────────────────────────────────
-
-logoutBtn.addEventListener('click', (e) => {
+logoutBtn.addEventListener('click', e => {
     e.preventDefault();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     updateAuthUI();
-    alert('👋 Logged out successfully!');
+    showToast('👋 Logged out successfully!');
 });
 
-// ─── Page Load & Cinematic Intro ───────────────────────────────────────────────
+// ─── Toast Notification ────────────────────────────────────────────────────────
+function showToast(msg, duration = 3000) {
+    let toast = document.getElementById('cs-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'cs-toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), duration);
+}
 
+// ─── Page Load ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-
-    // ── Prevent hero-image flash: body hidden until intro ends ──────────────
     document.body.classList.add('intro-active');
 
-    const intro         = document.getElementById('cinematic-intro');
-    const introPreloader= document.getElementById('introPreloader');
-    const introRing     = document.getElementById('introRing');
+    const intro = document.getElementById('cinematic-intro');
+    const introPreloader = document.getElementById('introPreloader');
+    const introRing = document.getElementById('introRing');
     const introLoadText = document.getElementById('introLoadText');
-    const canvas        = document.getElementById('intro-canvas');
+    const canvas = document.getElementById('intro-canvas');
 
-    // ── Spawn CSS stars ─────────────────────────────────────────────────────
+    // Stars
     const starsEl = document.getElementById('introStars');
     if (starsEl) {
         for (let i = 0; i < 120; i++) {
             const s = document.createElement('span');
             const size = Math.random() * 2.5 + 0.5;
-            s.style.cssText = [
-                `width:${size}px`, `height:${size}px`,
-                `top:${Math.random()*100}%`, `left:${Math.random()*100}%`,
-                `--d:${(Math.random()*3+2).toFixed(1)}s`,
-                `--delay:-${(Math.random()*5).toFixed(1)}s`
-            ].join(';');
+            s.style.cssText = [`width:${size}px`, `height:${size}px`, `top:${Math.random() * 100}%`, `left:${Math.random() * 100}%`, `--d:${(Math.random() * 3 + 2).toFixed(1)}s`, `--delay:-${(Math.random() * 5).toFixed(1)}s`].join(';');
             starsEl.appendChild(s);
         }
     }
 
     if (intro) {
-
-        // ── 0 s: Preloader + ring visible immediately ─────────────────────────
-
-        // ── 2.2 s: 3D canvas fades in behind preloader ───────────────────────
+        setTimeout(() => { if (canvas) canvas.classList.add('visible'); }, 2200);
+        setTimeout(() => { if (introRing) introRing.classList.add('hide'); if (introLoadText) introLoadText.classList.add('hide'); }, 3500);
+        setTimeout(() => { if (introPreloader) introPreloader.classList.add('fade-out'); }, 4000);
+        setTimeout(() => { intro.classList.add('hostel-scene-reveal-logo'); }, 5500);
         setTimeout(() => {
-            if (canvas) canvas.classList.add('visible');
-        }, 2200);
-
-        // ── 3.5 s: Hide loading ring + text ──────────────────────────────────
-        setTimeout(() => {
-            if (introRing)     introRing.classList.add('hide');
-            if (introLoadText) introLoadText.classList.add('hide');
-        }, 3500);
-
-        // ── 4 s: Fade out orbit preloader — 3D fully visible ─────────────────
-        setTimeout(() => {
-            if (introPreloader) introPreloader.classList.add('fade-out');
-        }, 4000);
-
-        // ── 5.5 s: CAMPUSSWAP logo assembles ─────────────────────────────────
-        setTimeout(() => {
-            intro.classList.add('hostel-scene-reveal-logo');
-        }, 5500);
-
-        // ── 7 s: Intro zooms out, site reveals ───────────────────────────────
-        setTimeout(() => {
-
             intro.classList.add('hidden');
-
-            setTimeout(() => {
-                document.body.classList.remove('intro-active');
-                document.body.classList.add('site-loaded');
-                intro.remove();
-            }, 1000);
-
+            setTimeout(() => { document.body.classList.remove('intro-active'); document.body.classList.add('site-loaded'); intro.remove(); }, 1000);
         }, 7000);
-
     } else {
-
         document.body.classList.add('site-loaded');
-
     }
 
     updateAuthUI();
     loadItems();
-
 });
-// ─── Load Items ────────────────────────────────────────────────────────────────
 
+// ─── Load Items ────────────────────────────────────────────────────────────────
 async function loadItems(filters = {}) {
     try {
         itemsGrid.innerHTML = '<div class="loading">Loading items...</div>';
-
-        let url = API_URL;
         const params = new URLSearchParams(filters);
-        if (params.toString()) {
-            url += '?' + params.toString();
-        }
-
-        const response = await fetch(url);
-        const result = await response.json();
-
+        const url = params.toString() ? `${API_URL}?${params}` : API_URL;
+        const res = await fetch(url);
+        const result = await res.json();
         if (result.success && result.data.length > 0) {
             displayItems(result.data);
         } else {
             itemsGrid.innerHTML = '<div class="no-items">No items found. Be the first to post! 🎉</div>';
         }
-    } catch (error) {
+    } catch {
         itemsGrid.innerHTML = '<div class="no-items">Error loading items. Make sure the server is running.</div>';
-        console.error('Error:', error);
     }
 }
 
 // ─── Display Items ─────────────────────────────────────────────────────────────
-
 function displayItems(items) {
     itemsGrid.innerHTML = items.map(item => `
     <div class="item-card" data-id="${item._id}">
-      <div class="item-image" ${item.image ? `style="background-image: url('${item.image}'); background-size: cover; background-position: center;"` : ''}>
+      <div class="item-image" ${item.image ? `style="background-image:url('${item.image}');background-size:cover;background-position:center;"` : ''}>
         ${!item.image ? `<i class="fas fa-${getCategoryIcon(item.category)}"></i>` : ''}
+        ${item.isSold ? '<div class="sold-badge">SOLD</div>' : ''}
       </div>
       <div class="item-content">
         <div class="item-title">${item.title}</div>
@@ -315,108 +208,307 @@ function displayItems(items) {
         </div>
         <div class="item-category">${item.category.replace('_', ' ')}</div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 
     document.querySelectorAll('.item-card').forEach(card => {
-        card.addEventListener('click', () => showModal(card.dataset.id));
+        card.addEventListener('click', () => showItemModal(card.dataset.id));
     });
 
-    // Setup 3D Scroll Animations for Cards
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry, index) => {
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach((entry, i) => {
             if (entry.isIntersecting) {
-                // Add staggered delay based on index
-                setTimeout(() => {
-                    entry.target.classList.add('show');
-                }, index * 100);
+                setTimeout(() => entry.target.classList.add('show'), i * 100);
                 observer.unobserve(entry.target);
             }
         });
-    }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+    document.querySelectorAll('.item-card').forEach(c => observer.observe(c));
+}
 
-    document.querySelectorAll('.item-card').forEach(card => {
-        observer.observe(card);
+function getCategoryIcon(cat) {
+    return { books: 'book', electronics: 'laptop', furniture: 'chair', lab_equipment: 'flask', bags: 'shopping-bag', sports: 'football', other: 'box' }[cat] || 'box';
+}
+function truncate(text, len) { return text.length > len ? text.substring(0, len) + '...' : text; }
+
+// ─── Item Modal (V2 — no phone shown) ─────────────────────────────────────────
+async function showItemModal(id) {
+    try {
+        const res = await fetch(`${API_URL}/${id}`);
+        const result = await res.json();
+        if (!result.success) return;
+        const item = result.data;
+        const user = getUser();
+
+        const isOwnItem = user && item.seller_email === user.email;
+        const chatBtnHtml = !isOwnItem
+            ? `<button class="modal-contact-btn chat-open-btn" data-itemid="${item._id}" data-sellerid="${item.sellerId}">
+                 <i class="fas fa-comment-dots"></i> Chat with Seller
+               </button>`
+            : `<div class="own-item-note"><i class="fas fa-info-circle"></i> This is your listing</div>`;
+
+        modalBody.innerHTML = `
+          <h2>${item.title}</h2>
+          ${item.image ? `<img src="${item.image}" style="width:100%;max-height:300px;object-fit:cover;border-radius:10px;margin-top:1rem;">` : ''}
+          <div class="modal-item-price">₹${item.price}</div>
+          <p><strong>Category:</strong> ${item.category.replace('_', ' ')}</p>
+          <p><strong>Condition:</strong> ${item.condition.replace('_', ' ')}</p>
+          <p><strong>Description:</strong></p>
+          <p>${item.description}</p>
+          <div class="modal-seller-info">
+            <p><strong>Seller:</strong> ${item.seller_name}</p>
+            <p><strong>Department:</strong> ${item.department}</p>
+            <p><strong>Year:</strong> ${item.year}</p>
+            <p><strong>Email:</strong> ${item.seller_email}</p>
+            <p class="phone-hidden-note"><i class="fas fa-lock"></i> Phone number is hidden — start a chat to unlock it</p>
+          </div>
+          ${chatBtnHtml}
+        `;
+
+        // Wire up "Chat with Seller" button
+        const chatBtn = modalBody.querySelector('.chat-open-btn');
+        if (chatBtn) {
+            chatBtn.addEventListener('click', async () => {
+                if (!getToken()) {
+                    switchToTab('login');
+                    authModal.style.display = 'flex';
+                    itemModal.style.display = 'none';
+                    return;
+                }
+                itemModal.style.display = 'none';
+                await openChat(item._id);
+            });
+        }
+
+        itemModal.style.display = 'block';
+    } catch { showToast('❌ Error loading item details'); }
+}
+
+// ─── Chat Panel ────────────────────────────────────────────────────────────────
+let activeChatId = null;
+
+// Inject chat panel once into the DOM
+function ensureChatPanel() {
+    if (document.getElementById('chatPanel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'chatPanel';
+    panel.innerHTML = `
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <span id="chatItemTitle">Chat</span>
+          <span id="chatOtherUser" class="chat-other-user"></span>
+        </div>
+        <div class="chat-header-actions">
+          <button id="revealPhoneBtn" class="chat-action-btn" title="Unlock phone number">
+            <i class="fas fa-lock"></i> Reveal Number
+          </button>
+          <button id="reportChatBtn" class="chat-action-btn report" title="Report this chat">
+            <i class="fas fa-flag"></i>
+          </button>
+          <button id="rateDealBtn" class="chat-action-btn rate" title="Rate this deal">
+            <i class="fas fa-star"></i>
+          </button>
+          <button id="closeChatBtn" class="chat-close-btn"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div id="chatPhoneReveal" class="chat-phone-reveal hidden"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Type a message…" maxlength="500">
+        <button id="chatSendBtn"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    `;
+    document.body.appendChild(panel);
+
+    document.getElementById('closeChatBtn').addEventListener('click', () => {
+        panel.classList.remove('open');
+        activeChatId = null;
+    });
+    document.getElementById('chatSendBtn').addEventListener('click', sendMessage);
+    document.getElementById('chatInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+    document.getElementById('revealPhoneBtn').addEventListener('click', requestPhoneReveal);
+    document.getElementById('reportChatBtn').addEventListener('click', reportChat);
+    document.getElementById('rateDealBtn').addEventListener('click', openRatePanel);
+}
+
+async function openChat(itemId) {
+    ensureChatPanel();
+    showToast('Opening chat…');
+    try {
+        const res = await fetch(CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+            body: JSON.stringify({ itemId })
+        });
+        const result = await res.json();
+        if (!result.success) { showToast('❌ ' + result.error); return; }
+        activeChatId = result.data._id;
+        await loadChatMessages(activeChatId);
+        document.getElementById('chatPanel').classList.add('open');
+    } catch { showToast('❌ Could not open chat. Check your connection.'); }
+}
+
+async function loadChatMessages(chatId) {
+    try {
+        const res = await fetch(`${CHAT_URL}/${chatId}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+        const result = await res.json();
+        if (!result.success) return;
+
+        const chat = result.data;
+        const me = getUser();
+        const other = chat.buyerId._id === me?.id ? chat.sellerId : chat.buyerId;
+        const ratingStr = other.rating ? `⭐ ${other.rating} (${other.ratingCount})` : 'No ratings yet';
+        const verifiedMark = other.isVerified ? ' ✔' : '';
+
+        document.getElementById('chatItemTitle').textContent = chat.itemId?.title || 'Item';
+        document.getElementById('chatOtherUser').textContent = `${other.name}${verifiedMark} • ${ratingStr}`;
+
+        const msgs = document.getElementById('chatMessages');
+        msgs.innerHTML = chat.messages.length === 0
+            ? '<div class="no-msgs">No messages yet. Say hi! 👋</div>'
+            : chat.messages.map(m => {
+                const isMine = m.senderId === me?.id;
+                return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
+                  <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
+                  <span class="msg-text">${escapeHtml(m.text)}</span>
+                  <span class="msg-time">${formatTime(m.createdAt)}</span>
+                </div>`;
+            }).join('');
+        msgs.scrollTop = msgs.scrollHeight;
+
+        // Show revealed phone if already unlocked
+        if (chat.phoneRevealed) {
+            document.getElementById('revealPhoneBtn').innerHTML = '<i class="fas fa-unlock"></i> Number Unlocked';
+        }
+    } catch { showToast('❌ Could not load messages.'); }
+}
+
+async function sendMessage() {
+    if (!activeChatId) return;
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    try {
+        const res = await fetch(`${CHAT_URL}/${activeChatId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+            body: JSON.stringify({ text })
+        });
+        const result = await res.json();
+        if (result.success) { await loadChatMessages(activeChatId); }
+        else { showToast('❌ ' + result.error); }
+    } catch { showToast('❌ Message failed to send.'); }
+}
+
+// ─── Phone Reveal ──────────────────────────────────────────────────────────────
+async function requestPhoneReveal() {
+    if (!activeChatId) return;
+    try {
+        const res = await fetch(`${CHAT_URL}/${activeChatId}/reveal-phone`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const result = await res.json();
+        const box = document.getElementById('chatPhoneReveal');
+        if (result.success) {
+            box.innerHTML = `<i class="fas fa-phone-alt"></i> <strong>${result.phone}</strong> — <a href="tel:+91${result.phone}">Call</a> | <a href="https://wa.me/91${result.phone}" target="_blank">WhatsApp</a>`;
+            box.classList.remove('hidden');
+            document.getElementById('revealPhoneBtn').innerHTML = '<i class="fas fa-unlock"></i> Number Unlocked';
+        } else {
+            showToast('🔒 ' + result.error);
+        }
+    } catch { showToast('❌ Could not request phone reveal.'); }
+}
+
+// ─── Report ────────────────────────────────────────────────────────────────────
+async function reportChat() {
+    if (!activeChatId) return;
+    const reason = prompt('Briefly describe the issue (spam, scam, abuse…):');
+    if (!reason) return;
+    try {
+        const res = await fetch(`${CHAT_URL}/${activeChatId}/report`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+            body: JSON.stringify({ reason })
+        });
+        const result = await res.json();
+        showToast(result.success ? '✅ Reported. Admin will review.' : '❌ ' + result.error);
+    } catch { showToast('❌ Could not submit report.'); }
+}
+
+// ─── Rating Panel ──────────────────────────────────────────────────────────────
+async function openRatePanel() {
+    if (!activeChatId) return;
+    const res = await fetch(`${CHAT_URL}/${activeChatId}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+    const result = await res.json();
+    if (!result.success) return;
+    const chat = result.data;
+    const me = getUser();
+    const other = chat.buyerId._id === me?.id ? chat.sellerId : chat.buyerId;
+
+    // Build a quick star-rating overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'rate-overlay';
+    overlay.innerHTML = `
+      <div class="rate-box">
+        <h3>Rate <strong>${other.name}</strong></h3>
+        <p>How was the deal?</p>
+        <div class="star-row" id="starRow">
+          ${[1, 2, 3, 4, 5].map(n => `<span class="star" data-v="${n}">★</span>`).join('')}
+        </div>
+        <p id="selectedScore" style="margin:0.5rem 0;color:#6366f1;font-weight:700"></p>
+        <textarea id="rateComment" placeholder="Leave a comment (optional)" rows="3" style="width:100%;margin-bottom:1rem;padding:0.5rem;border-radius:6px;border:1px solid #ddd;"></textarea>
+        <div style="display:flex;gap:0.75rem;">
+          <button id="submitRateBtn" class="btn btn-primary" style="flex:1">Submit ⭐</button>
+          <button id="cancelRateBtn" class="btn btn-secondary" style="flex:1">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    let selectedScore = 0;
+    overlay.querySelectorAll('.star').forEach(s => {
+        s.addEventListener('click', () => {
+            selectedScore = +s.dataset.v;
+            overlay.querySelectorAll('.star').forEach((x, i) => x.classList.toggle('active', i < selectedScore));
+            document.getElementById('selectedScore').textContent = `${selectedScore} / 5`;
+        });
+    });
+
+    document.getElementById('cancelRateBtn').addEventListener('click', () => overlay.remove());
+    document.getElementById('submitRateBtn').addEventListener('click', async () => {
+        if (!selectedScore) { showToast('Please select a star rating.'); return; }
+        const comment = document.getElementById('rateComment').value;
+        try {
+            const r = await fetch(`${BASE_URL}/api/ratings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+                body: JSON.stringify({ chatId: activeChatId, ratedUserId: other._id, score: selectedScore, comment })
+            });
+            const rr = await r.json();
+            overlay.remove();
+            showToast(rr.success ? `⭐ Rating submitted! Thanks.` : '❌ ' + rr.error);
+        } catch { showToast('❌ Could not submit rating.'); }
     });
 }
 
-function getCategoryIcon(category) {
-    const icons = {
-        books: 'book',
-        electronics: 'laptop',
-        furniture: 'chair',
-        lab_equipment: 'flask',
-        bags: 'shopping-bag',
-        sports: 'football',
-        other: 'box'
-    };
-    return icons[category] || 'box';
-}
-
-function truncate(text, length) {
-    return text.length > length ? text.substring(0, length) + '...' : text;
-}
-
-// ─── Show Item Modal ───────────────────────────────────────────────────────────
-
-async function showModal(id) {
-    try {
-        const response = await fetch(`${API_URL}/${id}`);
-        const result = await response.json();
-
-        if (result.success) {
-            const item = result.data;
-            modalBody.innerHTML = `
-        <h2>${item.title}</h2>
-        ${item.image ? `<img src="${item.image}" style="width: 100%; max-height: 300px; object-fit: cover; border-radius: 5px; margin-top: 1rem;">` : ''}
-        <div class="modal-item-price">₹${item.price}</div>
-        <p><strong>Category:</strong> ${item.category.replace('_', ' ')}</p>
-        <p><strong>Condition:</strong> ${item.condition.replace('_', ' ')}</p>
-        <p><strong>Description:</strong></p>
-        <p>${item.description}</p>
-        <div class="modal-seller-info">
-          <p><strong>Seller:</strong> ${item.seller_name}</p>
-          <p><strong>Department:</strong> ${item.department}</p>
-          <p><strong>Year:</strong> ${item.year}</p>
-          <p><strong>Phone:</strong> ${item.seller_phone}</p>
-          <p><strong>Email:</strong> ${item.seller_email}</p>
-        </div>
-        <a href="tel:+91${item.seller_phone}" target="_blank" class="modal-contact-btn">
-          <i class="fas fa-phone"></i> Call Seller
-        </a>
-        <a href="mailto:${item.seller_email}" target="_blank" class="modal-contact-btn" style="background: #3498db; margin-top: 0.5rem;">
-          <i class="fas fa-envelope"></i> Email Seller
-        </a>
-      `;
-            itemModal.style.display = 'block';
-        }
-    } catch (error) {
-        alert('Error loading item details');
-    }
-}
-
-// ─── Sell Form (PROTECTED) ─────────────────────────────────────────────────────
-
-sellForm.addEventListener('submit', async (e) => {
+// ─── Sell Form ─────────────────────────────────────────────────────────────────
+sellForm.addEventListener('submit', async e => {
     e.preventDefault();
-
     const token = getToken();
     if (!token) {
-        alert('⚠️ You must be logged in to post an item.');
+        showToast('⚠️ Please login to post an item.');
         switchToTab('login');
-        authModal.style.display = 'block';
+        authModal.style.display = 'flex';
         return;
     }
 
     const fileInput = document.getElementById('image');
     let imageBase64 = '';
     if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
         const reader = new FileReader();
-        
-        imageBase64 = await new Promise((resolve) => {
+        imageBase64 = await new Promise(resolve => {
             reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(fileInput.files[0]);
         });
     }
 
@@ -435,50 +527,29 @@ sellForm.addEventListener('submit', async (e) => {
     };
 
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(itemData)
-        });
-
-        const result = await response.json();
-
+        const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(itemData) });
+        const result = await res.json();
         if (result.success) {
-            alert('✅ Item posted successfully!');
+            showToast('✅ Item posted successfully!');
             sellForm.reset();
             loadItems();
             document.querySelector('a[href="#browse"]').click();
         } else {
-            if (response.status === 401) {
-                alert('⚠️ Session expired. Please login again.');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                updateAuthUI();
-                switchToTab('login');
-                authModal.style.display = 'block';
-            } else {
-                alert('❌ Error: ' + (result.error || 'Failed to post item'));
-            }
+            if (res.status === 401) {
+                showToast('⚠️ Session expired. Please login again.');
+                localStorage.removeItem('token'); localStorage.removeItem('user');
+                updateAuthUI(); switchToTab('login'); authModal.style.display = 'flex';
+            } else { showToast('❌ ' + (result.error || 'Failed to post item')); }
         }
-    } catch (error) {
-        alert('❌ Error connecting to server. Make sure the backend is running.');
-    }
+    } catch { showToast('❌ Error connecting to server.'); }
 });
 
 // ─── Search & Filters ──────────────────────────────────────────────────────────
-
 function triggerSearch() {
     const filters = {};
-    if (navSearchInput.value) filters.search = navSearchInput.value;
-    
     const activePill = document.querySelector('.pill.active');
-    if (activePill && activePill.dataset.category) {
-        filters.category = activePill.dataset.category;
-    }
-
+    if (navSearchInput.value) filters.search = navSearchInput.value;
+    if (activePill?.dataset.category) filters.category = activePill.dataset.category;
     loadItems(filters);
 }
 
@@ -490,23 +561,14 @@ categoryPills.forEach(pill => {
     });
 });
 
-// Close item modal
-closeBtn.addEventListener('click', () => {
-    itemModal.style.display = 'none';
+closeBtn.addEventListener('click', () => { itemModal.style.display = 'none'; });
+navSearchInput.addEventListener('keypress', e => {
+    if (e.key === 'Enter') { triggerSearch(); document.querySelector('#browse').scrollIntoView({ behavior: 'smooth' }); }
 });
 
-// Search on Enter key
-navSearchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        triggerSearch();
-        document.querySelector('#browse').scrollIntoView({ behavior: 'smooth' });
-    }
-});
-
-// Hero Background Slider
+// ─── Hero Slider ───────────────────────────────────────────────────────────────
 let currentSlide = 0;
 const slides = document.querySelectorAll('.hero-slider .slide');
-
 if (slides.length > 0) {
     setInterval(() => {
         slides[currentSlide].classList.remove('active');
@@ -515,53 +577,32 @@ if (slides.length > 0) {
     }, 5000);
 }
 
-// ─── 3D Scrolling Car ──────────────────────────────────────────────────────────
+// ─── Scroll Car ────────────────────────────────────────────────────────────────
 const scrollCarContainer = document.getElementById('scrollCarContainer');
 const scrollCar = document.getElementById('scrollCar');
-
 if (scrollCarContainer && scrollCar) {
     let lastScrollY = window.scrollY;
-
     window.addEventListener('scroll', () => {
-        const currentScrollY = window.scrollY;
+        const cur = window.scrollY;
         const maxScroll = document.body.scrollHeight - window.innerHeight;
-        
-        if (maxScroll <= 0) return; // Not enough content to scroll
-
-        // Calculate scroll percentage (0 to 1)
-        let scrollPercent = currentScrollY / maxScroll;
-        // Clamp it
-        scrollPercent = Math.max(0, Math.min(1, scrollPercent));
-
-        // Move the car vertically. Match the offset from CSS top: -200px
-        const startY = 0; 
-        const endY = window.innerHeight + 150;
-        const translateY = scrollPercent * (endY - startY);
-
-        scrollCarContainer.style.transform = `translateY(${translateY}px)`;
-
-        // Determine direction and rotate
-        if (currentScrollY > lastScrollY) {
-            // Scrolling down
-            scrollCar.style.transform = 'rotate(180deg)';
-        } else if (currentScrollY < lastScrollY) {
-            // Scrolling up
-            scrollCar.style.transform = 'rotate(0deg)';
-        }
-
-        // Hide road and car when in the hero section
-        const heroSection = document.getElementById('home');
-        const showThreshold = heroSection ? heroSection.offsetHeight - 150 : 400;
+        if (maxScroll <= 0) return;
+        const pct = Math.max(0, Math.min(1, cur / maxScroll));
+        scrollCarContainer.style.transform = `translateY(${pct * (window.innerHeight + 150)}px)`;
+        scrollCar.style.transform = cur > lastScrollY ? 'rotate(180deg)' : 'rotate(0deg)';
+        const heroH = document.getElementById('home')?.offsetHeight || 400;
         const road = document.getElementById('road');
-
-        if (currentScrollY > showThreshold) {
-            scrollCarContainer.style.opacity = '1';
-            if (road) road.style.opacity = '0.9';
-        } else {
-            scrollCarContainer.style.opacity = '0';
-            if (road) road.style.opacity = '0';
-        }
-
-        lastScrollY = currentScrollY;
+        const show = cur > heroH - 150;
+        scrollCarContainer.style.opacity = show ? '1' : '0';
+        if (road) road.style.opacity = show ? '0.9' : '0';
+        lastScrollY = cur;
     });
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
