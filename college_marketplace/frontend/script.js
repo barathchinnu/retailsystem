@@ -285,7 +285,125 @@ async function showItemModal(id) {
 
 // ─── Chat Panel ────────────────────────────────────────────────────────────────
 let activeChatId = null;
+const myChatsBtn =
+    document.getElementById('myChatsBtn');
 
+if (myChatsBtn) {
+
+    myChatsBtn.addEventListener(
+        'click',
+        loadMyChats
+    );
+
+}
+
+document
+    .getElementById('closeChatList')
+    ?.addEventListener(
+        'click',
+        () => {
+            document
+                .getElementById('chatListModal')
+                .style.display = 'none';
+        }
+    );
+
+async function loadMyChats(e) {
+
+    if (e) e.preventDefault();
+
+    try {
+
+        const res = await fetch(
+            CHAT_URL,
+            {
+                headers: {
+                    Authorization:
+                        `Bearer ${getToken()}`
+                }
+            }
+        );
+
+        const result = await res.json();
+
+        if (!result.success) {
+
+            showToast("Could not load chats");
+            return;
+        }
+
+        const modal =
+            document.getElementById(
+                'chatListModal'
+            );
+
+        const container =
+            document.getElementById(
+                'chatListContainer'
+            );
+
+        const me = getUser();
+
+        container.innerHTML =
+            result.data.map(chat => {
+
+                const other =
+                    chat.buyerId._id === me.id
+                        ? chat.sellerId
+                        : chat.buyerId;
+
+                return `
+            <div
+              class="chat-list-item"
+              onclick="openExistingChat('${chat._id}')"
+            >
+               <strong>
+                 ${chat.itemId?.title || 'Item'}
+               </strong>
+
+               <br>
+
+               ${other.name}
+            </div>
+            `;
+            }).join('');
+
+        modal.style.display = 'block';
+
+    }
+    catch (err) {
+
+        console.error(err);
+
+        showToast(
+            "Failed to load chats"
+        );
+    }
+}
+
+async function openExistingChat(
+    chatId
+) {
+
+    activeChatId = chatId;
+
+    await loadChatMessages(
+        chatId
+    );
+
+    document
+        .getElementById(
+            'chatPanel'
+        )
+        .classList
+        .add('open');
+
+    document
+        .getElementById(
+            'chatListModal'
+        )
+        .style.display = 'none';
+}
 // Inject chat panel once into the DOM
 function ensureChatPanel() {
     if (document.getElementById('chatPanel')) return;
@@ -318,6 +436,7 @@ function ensureChatPanel() {
       </div>
     `;
     document.body.appendChild(panel);
+    window.openExistingChat = openExistingChat;
 
     document.getElementById('closeChatBtn').addEventListener('click', () => {
         panel.classList.remove('open');
