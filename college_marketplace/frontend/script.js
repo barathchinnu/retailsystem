@@ -347,8 +347,10 @@ async function loadMyChats(e) {
         container.innerHTML =
             result.data.map(chat => {
 
+                const myId = me.id || me._id;
+
                 const other =
-                    chat.buyerId._id === me.id
+                    String(chat.buyerId?._id) === String(myId)
                         ? chat.sellerId
                         : chat.buyerId;
 
@@ -381,27 +383,23 @@ async function loadMyChats(e) {
     }
 }
 
-async function openExistingChat(
-    chatId
-) {
-
+async function openExistingChat(chatId) {
     activeChatId = chatId;
 
-    await loadChatMessages(
-        chatId
-    );
+    const panel = document.getElementById('chatPanel');
+
+    if (!panel) {
+        ensureChatPanel();
+    }
+
+    await loadChatMessages(chatId);
 
     document
-        .getElementById(
-            'chatPanel'
-        )
-        .classList
-        .add('open');
+        .getElementById('chatPanel')
+        ?.classList.add('open');
 
     document
-        .getElementById(
-            'chatListModal'
-        )
+        .getElementById('chatListModal')
         .style.display = 'none';
 }
 // Inject chat panel once into the DOM
@@ -474,7 +472,15 @@ async function loadChatMessages(chatId) {
 
         const chat = result.data;
         const me = getUser();
-        const other = chat.buyerId._id === me?.id ? chat.sellerId : chat.buyerId;
+
+        console.log("CHAT =", chat);
+        console.log("ME =", me);
+
+        const myId = me?.id || me?._id;
+
+        const other = String(chat.buyerId?._id) === String(myId)
+            ? chat.sellerId
+            : chat.buyerId;
         const ratingStr = other.rating ? `⭐ ${other.rating} (${other.ratingCount})` : 'No ratings yet';
         const verifiedMark = other.isVerified ? ' ✔' : '';
 
@@ -485,7 +491,7 @@ async function loadChatMessages(chatId) {
         msgs.innerHTML = chat.messages.length === 0
             ? '<div class="no-msgs">No messages yet. Say hi! 👋</div>'
             : chat.messages.map(m => {
-                const isMine = m.senderId === me?.id;
+                const isMine = String(m.senderId) === String(me?.id || me?._id);
                 return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
                   <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
                   <span class="msg-text">${escapeHtml(m.text)}</span>
@@ -563,7 +569,9 @@ async function openRatePanel() {
     if (!result.success) return;
     const chat = result.data;
     const me = getUser();
-    const other = chat.buyerId._id === me?.id ? chat.sellerId : chat.buyerId;
+    const myId = me?.id || me?._id;
+
+    const other = String(chat.buyerId?._id) === String(myId) ? chat.sellerId : chat.buyerId;
 
     // Build a quick star-rating overlay
     const overlay = document.createElement('div');
