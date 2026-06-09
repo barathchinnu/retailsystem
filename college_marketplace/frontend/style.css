@@ -30,6 +30,10 @@ body.intro-active {
     padding: 0 20px;
 }
 
+#main-wrapper {
+    padding-top: 90px;
+}
+
 /* Navbar */
 .navbar {
     background: rgba(255, 255, 255, 0.85);
@@ -1657,4 +1661,41 @@ body.site-loaded #main-wrapper {
     .chat-action-btn span {
         display: none;
     }
+}
+
+/* MY CHATS */
+
+.chat-list-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    z-index: 10000;
+}
+
+.chat-list-content {
+    width: 450px;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 15px;
+    margin: 50px auto;
+    padding: 20px;
+}
+
+.chat-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.chat-list-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.chat-list-item:hover {
+    background: #f5f5f5;
 }
