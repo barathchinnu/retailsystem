@@ -1538,6 +1538,10 @@ body.site-loaded #main-wrapper {
     font-weight: 600;
 }
 
+.msg-image img {
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+
 .msg-text {
     background: #e0e7ff;
     color: #1e1b4b;

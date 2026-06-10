@@ -539,6 +539,48 @@ async function loadMyChats(e) {
     }
 }
 
+let chatPollTimer = null;
+let chatLastSeenCount = 0;
+
+function stopChatPolling() {
+    if (chatPollTimer) {
+        clearInterval(chatPollTimer);
+        chatPollTimer = null;
+    }
+}
+
+function startChatPolling() {
+    stopChatPolling();
+
+    const panel = document.getElementById('chatPanel');
+    if (!panel) return;
+
+    // set initial count based on current DOM
+    chatLastSeenCount = document.getElementById('chatMessages')?.querySelectorAll('.chat-msg')?.length ?? 0;
+
+    chatPollTimer = setInterval(async () => {
+        if (!activeChatId) return;
+        if (!panel.classList.contains('open')) return;
+
+        try {
+            const res = await fetch(`${CHAT_URL}/${activeChatId}`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            const result = await res.json();
+            if (!result.success) return;
+
+            const newCount = result.data?.messages?.length ?? 0;
+            if (newCount !== chatLastSeenCount) {
+                chatLastSeenCount = newCount;
+                await loadChatMessages(activeChatId);
+            }
+        } catch {
+            // ignore poll errors
+        }
+    }, 2000);
+}
+
+
 async function openExistingChat(chatId) {
     activeChatId = chatId;
 
@@ -553,6 +595,9 @@ async function openExistingChat(chatId) {
     document
         .getElementById('chatPanel')
         ?.classList.add('open');
+
+    startChatPolling();
+
 
     document
         .getElementById('chatListModal')
@@ -585,6 +630,10 @@ function ensureChatPanel() {
       <div id="chatMessages" class="chat-messages"></div>
       <div id="chatPhoneReveal" class="chat-phone-reveal hidden"></div>
       <div class="chat-input-row">
+        <input type="file" id="chatImageInput" accept="image/*" style="display:none" />
+        <button id="chatImageBtn" class="chat-action-btn" type="button" title="Upload image to send" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-image"></i>
+        </button>
         <input type="text" id="chatInput" placeholder="Type a message…" maxlength="500">
         <button id="chatSendBtn"><i class="fas fa-paper-plane"></i></button>
       </div>
@@ -595,9 +644,21 @@ function ensureChatPanel() {
     document.getElementById('closeChatBtn').addEventListener('click', () => {
         panel.classList.remove('open');
         activeChatId = null;
+        stopChatPolling();
     });
     document.getElementById('chatSendBtn').addEventListener('click', sendMessage);
     document.getElementById('chatInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+    // Image upload in chat
+    const chatImageInput = document.getElementById('chatImageInput');
+    const chatImageBtn = document.getElementById('chatImageBtn');
+    chatImageBtn?.addEventListener('click', () => chatImageInput?.click());
+    chatImageInput?.addEventListener('change', () => {
+        const file = chatImageInput.files?.[0];
+        if (!file) return;
+        sendImageMessage(file);
+        chatImageInput.value = '';
+    });
     document.getElementById('revealPhoneBtn').addEventListener('click', requestPhoneReveal);
     document.getElementById('reportChatBtn').addEventListener('click', reportChat);
     document.getElementById('rateDealBtn').addEventListener('click', openRatePanel);
@@ -652,7 +713,8 @@ async function loadChatMessages(chatId) {
                 const isMine = String(m.senderId) === String(me?.id || me?._id);
                 return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
                   <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
-                  <span class="msg-text">${escapeHtml(m.text)}</span>
+                  ${m.image ? `<span class="msg-image"><img src="${m.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
+                  ${m.text ? `<span class="msg-text">${escapeHtml(m.text)}</span>` : ''}
                   <span class="msg-time">${formatTime(m.createdAt)}</span>
                 </div>`;
             }).join('');
@@ -701,6 +763,33 @@ async function requestPhoneReveal() {
             showToast('🔒 ' + result.error);
         }
     } catch { showToast('❌ Could not request phone reveal.'); }
+}
+
+async function sendImageMessage(file) {
+    if (!activeChatId) return;
+    try {
+        const token = getToken();
+        if (!token) { showToast('⚠️ Please login.'); return; }
+
+        const reader = new FileReader();
+        const base64 = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        const res = await fetch(`${CHAT_URL}/${activeChatId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ image: base64 })
+        });
+
+        const result = await res.json();
+        if (result.success) await loadChatMessages(activeChatId);
+        else showToast('❌ ' + result.error);
+    } catch {
+        showToast('❌ Image message failed to send.');
+    }
 }
 
 // ─── Report ────────────────────────────────────────────────────────────────────

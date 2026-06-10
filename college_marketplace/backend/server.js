@@ -70,7 +70,9 @@ const Item = mongoose.model('Item', itemSchema);
 const messageSchema = new mongoose.Schema({
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     senderName: { type: String, required: true },
-    text: { type: String, required: true },
+    // message can be text-only or image-only
+    text: { type: String },
+    image: { type: String }, // base64 data URL
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -378,7 +380,21 @@ app.post('/api/chats/:chatId/messages', authMiddleware, async (req, res) => {
         if (chat.buyerId.toString() !== uid && chat.sellerId.toString() !== uid)
             return res.status(403).json({ success: false, error: 'Access denied.' });
 
-        const msg = { senderId: uid, senderName: req.user.name, text: req.body.text };
+const msg = {
+            senderId: uid,
+            senderName: req.user.name,
+            text: req.body.text,
+            image: req.body.image
+        };
+
+        if ((!msg.text || msg.text.trim() === '') && !msg.image) {
+            return res.status(400).json({ success: false, error: 'Message must contain text or an image.' });
+        }
+
+        // Enforce max size for safety (data URL size can be big)
+        if (msg.image && msg.image.length > 2_500_000) {
+            return res.status(400).json({ success: false, error: 'Image is too large. Please upload a smaller image.' });
+        }
         chat.messages.push(msg);
         await chat.save();
 
