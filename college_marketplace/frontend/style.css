@@ -1736,3 +1736,21 @@ body.site-loaded #main-wrapper {
 .chat-list-item:hover {
     background: #f5f5f5;
 }
+
+/* ── DP Preview Modal ─────────────────────────── */
+.dp-preview-modal .modal-content {
+    max-width: 560px;
+    padding: 1rem;
+}
+
+.dp-preview-modal .close {
+    position: absolute;
+    right: 1rem;
+    top: 0.75rem;
+    font-size: 2rem;
+    color: #475569;
+}
+
+.dp-preview-modal .close:hover {
+    color: #0f172a;
+}

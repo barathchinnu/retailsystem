@@ -45,7 +45,37 @@ function updateAuthUI() {
 
     if (user) {
         const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
-        userGreeting.innerHTML = `<i class="fas fa-user-circle"></i> Hi, ${user.name.split(' ')[0]}${badge}`;
+        // Nav DP (base64)
+        const navImg = document.getElementById('navProfileImage');
+        const navIcon = document.getElementById('navProfileIcon');
+        const pi = user.profileImage;
+        if (navImg) {
+            if (pi) {
+                navImg.src = pi;
+                navImg.style.display = 'block';
+                navIcon && (navIcon.style.display = 'none');
+            } else {
+                navImg.src = '';
+                navImg.style.display = 'none';
+                navIcon && (navIcon.style.display = 'block');
+            }
+        }
+        // Update greeting text + badge, but keep the DP/icon layout stable
+        const nameFirst = user.name.split(' ')[0];
+        const iconHtml = navIcon ? navIcon.outerHTML : '<i class="fas fa-user-circle" id="navProfileIcon"></i>';
+        const imgHtml = navImg ? navImg.outerHTML : '';
+        userGreeting.innerHTML = `${imgHtml || iconHtml} Hi, ${nameFirst}${badge}`;
+
+        // Re-bind DP click after greeting HTML is re-rendered
+        const dp = document.getElementById('navProfileImage');
+        if (dp && dp.src) {
+            dp.style.cursor = 'pointer';
+            dp.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openDpPreview(dp.src);
+            };
+        }
     }
 }
 
@@ -273,6 +303,63 @@ function showToast(msg, duration = 3000) {
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => toast.classList.remove('show'), duration);
 }
+
+// ─── Profile DP Preview (tap to view) ─────────────────────────────────────────
+const dpPreviewModalId = 'dpPreviewModal';
+function ensureDpPreviewModal() {
+    let modal = document.getElementById(dpPreviewModalId);
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = dpPreviewModalId;
+    modal.className = 'modal dp-preview-modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:520px;">
+            <span class="close" id="dpPreviewClose" style="cursor:pointer;">&times;</span>
+            <div style="display:flex;justify-content:center;">
+                <img id="dpPreviewImage" alt="Profile picture" style="max-width:100%;max-height:70vh;border-radius:16px;object-fit:contain;" />
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+
+    document.getElementById('dpPreviewClose')?.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    return modal;
+}
+
+function openDpPreview(src) {
+    const modal = ensureDpPreviewModal();
+    const img = document.getElementById('dpPreviewImage');
+    if (!img) return;
+    img.src = src || '';
+    modal.style.display = 'block';
+}
+
+// bind on first render + after auth updates
+// (dp image src is set inside updateAuthUI)
+
+
+function autoBindDpPreview() {
+    const dp = document.getElementById('navProfileImage');
+    if (!dp) return;
+
+    // Make it clickable when DP exists
+    dp.style.cursor = 'pointer';
+    dp.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dp.src) return;
+        openDpPreview(dp.src);
+    });
+}
+
 
 // ─── Page Load ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
