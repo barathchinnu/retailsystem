@@ -88,6 +88,12 @@
                         </span>
                     </li>
                     <li class="auth-logged-in" style="display:none;">
+                        <a href="#" class="btn btn-register" id="editProfileBtn" style="background:#111827; color:white !important;">
+                            <i class="fas fa-user-edit"></i> Edit Profile
+                        </a>
+                    </li>
+
+                    <li class="auth-logged-in" style="display:none;">
                         <a href="#" id="myChatsBtn">
                             <i class="fas fa-comments"></i> My Chats
                         </a>
@@ -104,6 +110,27 @@
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </a>
                     </li>
+
+                    <div id="profileModal" class="modal">
+                        <div class="modal-content" style="max-width:520px;">
+                            <span class="close" id="profileModalClose">&times;</span>
+                            <h2 style="margin-top:0;">Edit Profile</h2>
+                            <div id="profileError" class="auth-error" style="display:none;"></div>
+                            <div class="form-group">
+                                <label>Your Name</label>
+                                <input type="text" id="profileName" placeholder="Your name" />
+                            </div>
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label>Department</label>
+                                <input type="text" id="profileDepartment" placeholder="e.g., CSE" />
+                            </div>
+                            <div style="margin-top:1rem; display:flex; gap:0.75rem;">
+                                <button class="btn btn-primary" id="profileSaveBtn" style="flex:1; background:#6366f1; color:#fff; border:none;">Save</button>
+                                <button class="btn btn-ghost" id="profileCancelBtn" style="flex:1; border:1px solid #e5e7eb; background:#fff;">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </ul>
             </div>
         </nav>

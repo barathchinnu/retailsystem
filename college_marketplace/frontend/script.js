@@ -126,6 +126,78 @@ logoutBtn.addEventListener('click', e => {
     showToast('👋 Logged out successfully!');
 });
 
+// ─── Profile Modal ─────────────────────────────────────────────────────────
+const profileModal = document.getElementById('profileModal');
+const profileModalClose = document.getElementById('profileModalClose');
+const profileCancelBtn = document.getElementById('profileCancelBtn');
+const profileSaveBtn = document.getElementById('profileSaveBtn');
+const profileError = document.getElementById('profileError');
+const editProfileBtn = document.getElementById('editProfileBtn');
+
+if (editProfileBtn) {
+    editProfileBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!getToken()) { showToast('⚠️ Please login first.'); return; }
+        try {
+            const res = await fetch(`${BASE_URL}/api/users/me`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+
+            const result = await res.json().catch(() => ({ success: false, error: `HTTP ${res.status}` }));
+            if (!result.success) { showToast(result.error || 'Failed to load profile'); return; }
+
+            document.getElementById('profileName').value = result.data.name || '';
+            document.getElementById('profileDepartment').value = result.data.department || '';
+            profileError.style.display = 'none';
+            profileModal.style.display = 'block';
+        } catch {
+            showToast('❌ Could not load profile.');
+        }
+    });
+}
+
+function setProfileError(msg) {
+    if (!profileError) return;
+    profileError.textContent = msg;
+    profileError.style.display = 'block';
+}
+
+profileModalClose?.addEventListener('click', () => { profileModal.style.display = 'none'; profileError?.style && (profileError.style.display = 'none'); });
+profileCancelBtn?.addEventListener('click', () => { profileModal.style.display = 'none'; profileError && (profileError.style.display = 'none'); });
+
+profileSaveBtn?.addEventListener('click', async () => {
+    const token = getToken();
+    if (!token) return;
+
+    try {
+        const name = document.getElementById('profileName').value.trim();
+        const department = document.getElementById('profileDepartment').value.trim();
+
+        const res = await fetch(`${BASE_URL}/api/users/me`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ name, department })
+        });
+
+        const result = await res.json();
+        if (!result.success) {
+            setProfileError(result.error || 'Failed to save profile');
+            return;
+        }
+
+        // refresh localStorage user
+        const updated = result.data;
+        const curUser = getUser();
+        const merged = { ...curUser, ...updated };
+        localStorage.setItem('user', JSON.stringify(merged));
+        updateAuthUI();
+        profileModal.style.display = 'none';
+        showToast('✅ Profile updated');
+    } catch {
+        setProfileError('❌ Could not update profile.');
+    }
+});
+
 // ─── Toast Notification ────────────────────────────────────────────────────────
 function showToast(msg, duration = 3000) {
     let toast = document.getElementById('cs-toast');

@@ -199,6 +199,48 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// ─── Profile (logged-in user) ─────────────────────────────────────────────
+app.get('/api/users/me', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('name email department isVerified');
+        if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
+        res.json({
+            success: true,
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                department: user.department,
+                isVerified: user.isVerified
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Update profile (name/department)
+app.patch('/api/users/me', authMiddleware, async (req, res) => {
+    try {
+        const { name, department } = req.body;
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (department !== undefined) updates.department = department;
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, error: 'No fields to update.' });
+        }
+
+        const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('name email department isVerified');
+        if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
+
+        res.json({ success: true, data: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 // ═══════════════════════════════════════════════════
 //  ITEM ROUTES
 // ═══════════════════════════════════════════════════
