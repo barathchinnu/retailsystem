@@ -124,6 +124,19 @@
                                 <label>Department</label>
                                 <input type="text" id="profileDepartment" placeholder="e.g., CSE" />
                             </div>
+
+                            <div class="form-group" style="margin-top:0.9rem;">
+                                <label>Profile Image (DP)</label>
+                                <input type="file" id="profileImageInput" accept="image/*" />
+                                <div id="profileImagePreviewWrap" style="margin-top:0.6rem; display:flex; align-items:center; gap:12px;">
+                                    <div style="width:48px;height:48px;border-radius:999px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;">
+                                        <img id="profileImagePreview" src="" alt="Profile" style="width:100%;height:100%;object-fit:cover;display:none;" />
+                                        <span id="profileImagePlaceholder" style="color:#9ca3af;font-size:0.9rem;">DP</span>
+                                    </div>
+                                    <div class="muted" style="font-size:0.9rem; color:#6b7280;">Uploads are saved to your profile.</div>
+                                </div>
+                            </div>
+
                             <div style="margin-top:1rem; display:flex; gap:0.75rem;">
                                 <button class="btn btn-primary" id="profileSaveBtn" style="flex:1; background:#6366f1; color:#fff; border:none;">Save</button>
                                 <button class="btn btn-ghost" id="profileCancelBtn" style="flex:1; border:1px solid #e5e7eb; background:#fff;">Cancel</button>

@@ -148,6 +148,26 @@ if (editProfileBtn) {
 
             document.getElementById('profileName').value = result.data.name || '';
             document.getElementById('profileDepartment').value = result.data.department || '';
+
+            const img = document.getElementById('profileImagePreview');
+            const placeholder = document.getElementById('profileImagePlaceholder');
+            const pi = result.data.profileImage;
+            if (img) {
+                if (pi) {
+                    img.src = pi;
+                    img.style.display = 'block';
+                    placeholder && (placeholder.style.display = 'none');
+                } else {
+                    img.src = '';
+                    img.style.display = 'none';
+                    placeholder && (placeholder.style.display = 'block');
+                }
+            }
+
+            // reset file picker
+            const fileInput = document.getElementById('profileImageInput');
+            if (fileInput) fileInput.value = '';
+
             profileError.style.display = 'none';
             profileModal.style.display = 'block';
         } catch {
@@ -165,6 +185,29 @@ function setProfileError(msg) {
 profileModalClose?.addEventListener('click', () => { profileModal.style.display = 'none'; profileError?.style && (profileError.style.display = 'none'); });
 profileCancelBtn?.addEventListener('click', () => { profileModal.style.display = 'none'; profileError && (profileError.style.display = 'none'); });
 
+const profileImageInput = document.getElementById('profileImageInput');
+profileImageInput?.addEventListener('change', () => {
+    const file = profileImageInput.files?.[0];
+    const img = document.getElementById('profileImagePreview');
+    const placeholder = document.getElementById('profileImagePlaceholder');
+    if (!img) return;
+
+    if (!file) {
+        img.src = '';
+        img.style.display = 'none';
+        placeholder && (placeholder.style.display = 'block');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        img.src = String(reader.result || '');
+        img.style.display = 'block';
+        placeholder && (placeholder.style.display = 'none');
+    };
+    reader.readAsDataURL(file);
+});
+
 profileSaveBtn?.addEventListener('click', async () => {
     const token = getToken();
     if (!token) return;
@@ -173,10 +216,29 @@ profileSaveBtn?.addEventListener('click', async () => {
         const name = document.getElementById('profileName').value.trim();
         const department = document.getElementById('profileDepartment').value.trim();
 
+        const fileInput = document.getElementById('profileImageInput');
+        let profileImage;
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (file.size > 2_700_000) {
+                setProfileError('Profile image is too large (max ~2.5MB).');
+                return;
+            }
+            const reader = new FileReader();
+            profileImage = await new Promise((resolve, reject) => {
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        const body = { name, department };
+        if (profileImage !== undefined) body.profileImage = profileImage;
+
         const res = await fetch(`${BASE_URL}/api/users/me`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ name, department })
+            body: JSON.stringify(body)
         });
 
         const result = await res.json();

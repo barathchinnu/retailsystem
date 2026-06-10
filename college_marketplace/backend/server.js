@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     department: { type: String, required: true },
+    // Profile
+    profileImage: { type: String, default: '' }, // base64 data URL
     // Ratings
     ratingTotal: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
@@ -202,7 +204,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ─── Profile (logged-in user) ─────────────────────────────────────────────
 app.get('/api/users/me', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('name email department isVerified');
+        const user = await User.findById(req.user.id).select('name email department isVerified profileImage');
         if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
         res.json({
             success: true,
@@ -211,7 +213,8 @@ app.get('/api/users/me', authMiddleware, async (req, res) => {
                 name: user.name,
                 email: user.email,
                 department: user.department,
-                isVerified: user.isVerified
+                isVerified: user.isVerified,
+                profileImage: user.profileImage
             }
         });
     } catch (err) {
@@ -222,16 +225,36 @@ app.get('/api/users/me', authMiddleware, async (req, res) => {
 // Update profile (name/department)
 app.patch('/api/users/me', authMiddleware, async (req, res) => {
     try {
-        const { name, department } = req.body;
+        const { name, department, profileImage } = req.body;
         const updates = {};
         if (name !== undefined) updates.name = name;
         if (department !== undefined) updates.department = department;
+
+        if (profileImage !== undefined) {
+            // allow clearing
+            if (profileImage === '' || profileImage === null) {
+                updates.profileImage = '';
+            } else {
+                if (typeof profileImage !== 'string') {
+                    return res.status(400).json({ success: false, error: 'Invalid profile image.' });
+                }
+                // Basic data URL validation
+                if (!profileImage.startsWith('data:image/') || !profileImage.includes(';base64,')) {
+                    return res.status(400).json({ success: false, error: 'Profile image must be a base64 data URL.' });
+                }
+                // Enforce max size (~2.5MB-ish base64 string)
+                if (profileImage.length > 3_500_000) {
+                    return res.status(400).json({ success: false, error: 'Profile image is too large.' });
+                }
+                updates.profileImage = profileImage;
+            }
+        }
 
         if (Object.keys(updates).length === 0) {
             return res.status(400).json({ success: false, error: 'No fields to update.' });
         }
 
-        const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('name email department isVerified');
+        const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('name email department isVerified profileImage');
         if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
 
         res.json({ success: true, data: updated });
