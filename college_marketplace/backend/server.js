@@ -244,9 +244,52 @@ app.post('/api/items', authMiddleware, async (req, res) => {
     }
 });
 
+// Update item (seller only)
+app.patch('/api/items/:id', authMiddleware, async (req, res) => {
+    try {
+        const item = await Item.findById(req.params.id);
+        if (!item) return res.status(404).json({ success: false, error: 'Item not found' });
+        if (String(item.sellerId) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, error: 'You can only modify your own listing.' });
+        }
+
+        // Do not allow changing sellerId/email/phone directly
+        const allowed = ['title', 'category', 'price', 'condition', 'description', 'year', 'image', 'seller_name', 'department'];
+        const updates = {};
+        for (const k of allowed) {
+            if (req.body[k] !== undefined) updates[k] = req.body[k];
+        }
+
+        // If seller_phone/seller_email are sent, ignore them.
+
+        Object.assign(item, updates);
+        const saved = await item.save();
+        res.json({ success: true, data: saved });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
+// Delete item (seller only)
+app.delete('/api/items/:id', authMiddleware, async (req, res) => {
+    try {
+        const item = await Item.findById(req.params.id);
+        if (!item) return res.status(404).json({ success: false, error: 'Item not found' });
+        if (String(item.sellerId) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, error: 'You can only delete your own listing.' });
+        }
+        await Item.findByIdAndDelete(req.params.id);
+        // Note: we do not delete chats/rating here.
+        res.json({ success: true, message: 'Item deleted.' });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+});
+
 // ═══════════════════════════════════════════════════
 //  CHAT ROUTES
 // ═══════════════════════════════════════════════════
+
 
 // Start or get existing chat for item+buyer
 app.post('/api/chats', authMiddleware, async (req, res) => {
