@@ -248,11 +248,42 @@ async function showItemModal(id) {
         const user = getUser();
 
         const isOwnItem = user && item.seller_email === user.email;
+
         const chatBtnHtml = !isOwnItem
             ? `<button class="modal-contact-btn chat-open-btn" data-itemid="${item._id}" data-sellerid="${item.sellerId}">
                  <i class="fas fa-comment-dots"></i> Chat with Seller
                </button>`
             : `<div class="own-item-note"><i class="fas fa-info-circle"></i> This is your listing</div>`;
+
+        const sellerActionsHtml = isOwnItem
+            ? `
+              <div class="seller-actions" style="margin-top:1rem; display:flex; gap:0.6rem; flex-wrap:wrap;">
+                <button class="btn btn-ghost" id="sellerEditBtn" style="border:1px solid #e5e7eb; background:#fff;">✏️ Edit</button>
+                <button class="btn btn-ghost" id="sellerToggleSoldBtn" style="border:1px solid #e5e7eb; background:#fff;">${item.isSold ? '✅ Mark as Available' : '🔴 Mark as Sold'}</button>
+                <button class="btn btn-danger" id="sellerDeleteBtn" style="background:#ef4444; color:#fff; border:none;">🗑️ Delete</button>
+              </div>
+              <div id="sellerEditForm" style="display:none; margin-top:1rem;">
+                <div class="form-group"><label>Title</label><input id="editTitle" type="text" value="${escapeHtml(item.title)}"></div>
+                <div class="form-group" style="margin-top:0.5rem"><label>Price (₹)</label><input id="editPrice" type="number" value="${item.price}" min="0"></div>
+                <div class="form-group" style="margin-top:0.5rem"><label>Condition</label>
+                  <select id="editCondition">
+                    ${['new','like_new','good','fair'].map(c=>`<option value="${c}" ${item.condition===c?'selected':''}>${c.replace('_',' ')}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group" style="margin-top:0.5rem"><label>Category</label>
+                  <select id="editCategory">
+                    ${['books','electronics','furniture','lab_equipment','bags','sports','other'].map(cat=>`<option value="${cat}" ${item.category===cat?'selected':''}>${cat.replace('_',' ')}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group" style="margin-top:0.5rem"><label>Year</label><input id="editYear" type="text" value="${escapeHtml(item.year)}"></div>
+                <div class="form-group" style="margin-top:0.5rem"><label>Description</label><textarea id="editDescription" rows="3">${escapeHtml(item.description)}</textarea></div>
+                <div style="margin-top:0.6rem; display:flex; gap:0.6rem;">
+                  <button class="btn btn-primary" id="sellerSaveBtn" style="flex:1; background:#6366f1; color:#fff;">Save</button>
+                  <button class="btn btn-ghost" id="sellerCancelBtn" style="flex:1; border:1px solid #e5e7eb; background:#fff;">Cancel</button>
+                </div>
+              </div>
+            `
+            : '';
 
         modalBody.innerHTML = `
           <h2>${item.title}</h2>
@@ -270,7 +301,9 @@ async function showItemModal(id) {
             <p class="phone-hidden-note"><i class="fas fa-lock"></i> Phone number is hidden — start a chat to unlock it</p>
           </div>
           ${chatBtnHtml}
+          ${sellerActionsHtml}
         `;
+
 
         // Wire up "Chat with Seller" button
         const chatBtn = modalBody.querySelector('.chat-open-btn');
@@ -287,9 +320,124 @@ async function showItemModal(id) {
             });
         }
 
+        // Seller actions (edit / toggle sold / delete)
+        if (isOwnItem) {
+            const sellerEditBtn = modalBody.querySelector('#sellerEditBtn');
+            const sellerToggleSoldBtn = modalBody.querySelector('#sellerToggleSoldBtn');
+            const sellerDeleteBtn = modalBody.querySelector('#sellerDeleteBtn');
+
+            const sellerEditForm = modalBody.querySelector('#sellerEditForm');
+            const sellerSaveBtn = modalBody.querySelector('#sellerSaveBtn');
+            const sellerCancelBtn = modalBody.querySelector('#sellerCancelBtn');
+
+            sellerEditBtn?.addEventListener('click', () => {
+                const isOpen = sellerEditForm.style.display !== 'none';
+                sellerEditForm.style.display = isOpen ? 'none' : 'block';
+            });
+
+            sellerCancelBtn?.addEventListener('click', () => {
+                sellerEditForm.style.display = 'none';
+            });
+
+            sellerToggleSoldBtn?.addEventListener('click', async () => {
+                const token = getToken();
+                if (!token) {
+                    showToast('⚠️ Please login.');
+                    switchToTab('login');
+                    authModal.style.display = 'flex';
+                    return;
+                }
+                try {
+                    const res = await fetch(`${API_URL}/${item._id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ isSold: !item.isSold })
+                    });
+                    const result = await res.json();
+                    if (!result.success && !result.data) {
+                        // backend currently returns {success:true,data}
+                    }
+                    if (!res.ok || (result.success === false)) {
+                        showToast(`❌ ${result.error || 'Failed to update sold status'}`);
+                        return;
+                    }
+                    showToast('✅ Status updated');
+                    item.isSold = !item.isSold;
+                    await showItemModal(item._id);
+                } catch {
+                    showToast('❌ Could not update status');
+                }
+            });
+
+            sellerDeleteBtn?.addEventListener('click', async () => {
+                const token = getToken();
+                if (!token) {
+                    showToast('⚠️ Please login.');
+                    switchToTab('login');
+                    authModal.style.display = 'flex';
+                    return;
+                }
+                const ok = confirm('Delete this listing?');
+                if (!ok) return;
+                try {
+                    const res = await fetch(`${API_URL}/${item._id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const result = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        // surface server message for easier debugging
+                        showToast(`❌ ${result.error || `Delete failed (HTTP ${res.status})`}`);
+                        return;
+                    }
+                    showToast('🗑️ Deleted');
+                    itemModal.style.display = 'none';
+                    await loadItems();
+                } catch {
+                    showToast('❌ Delete failed');
+                }
+            });
+
+            sellerSaveBtn?.addEventListener('click', async () => {
+                const token = getToken();
+                if (!token) {
+                    showToast('⚠️ Please login.');
+                    return;
+                }
+
+                const payload = {
+                    title: document.getElementById('editTitle')?.value,
+                    price: Number(document.getElementById('editPrice')?.value),
+                    condition: document.getElementById('editCondition')?.value,
+                    category: document.getElementById('editCategory')?.value,
+                    year: document.getElementById('editYear')?.value,
+                    description: document.getElementById('editDescription')?.value
+                };
+
+                try {
+                    const res = await fetch(`${API_URL}/${item._id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await res.json();
+                    if (!res.ok || result.success === false) {
+                        showToast(`❌ ${result.error || 'Update failed'}`);
+                        return;
+                    }
+                    showToast('✅ Listing updated');
+                    sellerEditForm.style.display = 'none';
+                    await showItemModal(item._id);
+                } catch {
+                    showToast('❌ Update failed');
+                }
+            });
+        }
+
         itemModal.style.display = 'block';
     } catch { showToast('❌ Error loading item details'); }
 }
+
 
 // ─── Chat Panel ────────────────────────────────────────────────────────────────
 let activeChatId = null;

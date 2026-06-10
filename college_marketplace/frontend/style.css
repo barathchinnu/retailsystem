@@ -595,7 +595,11 @@ section h2 {
     overflow-y: auto;
     border: 1px solid #e5e7eb;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    /* Make sure modal stays centered and does not get pushed upward */
+    top: auto;
+    transform: translateY(0);
 }
+
 
 .close {
     position: absolute;
@@ -778,7 +782,35 @@ section h2 {
         margin: 10% auto;
         width: 95%;
     }
+
+    /* Pixel 7 tuning (mobile modal: better fit to small screens) */
+    .modal-content {
+        /* center exactly */
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) !important;
+
+        /* fit viewport */
+        width: min(92vw, 420px);
+        max-width: 92vw;
+        padding: 0.9rem 0.95rem;
+        border-radius: 16px;
+        max-height: 88vh;
+        overflow-y: auto;
+
+        /* prevent awkward shifting */
+        margin: 0;
+    }
+
+    .close {
+        right: 0.9rem;
+        top: 0.8rem;
+        font-size: 1.75rem;
+    }
+
 }
+
 
 /* Scrolling Car Animations */
 #road {
@@ -813,7 +845,8 @@ section h2 {
 #scrollCar {
     width: 100%;
     height: auto;
-    mix-blend-mode: multiply;
+    background: transparent;
+    mix-blend-mode: darken;
     transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     transform: rotate(0deg);
 }
