@@ -266,8 +266,56 @@ app.patch('/api/users/me', authMiddleware, async (req, res) => {
 
 
 // ═══════════════════════════════════════════════════
+//  WISHLIST ROUTES (Save / Unsave)
+// ═══════════════════════════════════════════════════
+
+const Wishlist = require('./models/Wishlist');
+
+// Toggle wishlist for logged-in user
+app.post('/api/wishlist/toggle', authMiddleware, async (req, res) => {
+    try {
+        const { itemId } = req.body;
+        if (!itemId) return res.status(400).json({ success: false, error: 'itemId is required.' });
+
+        const item = await Item.findById(itemId).select('_id');
+        if (!item) return res.status(404).json({ success: false, error: 'Item not found.' });
+
+        const userId = req.user.id;
+
+        const existing = await Wishlist.findOne({ userId, itemId });
+        if (existing) {
+            await Wishlist.findOneAndDelete({ userId, itemId });
+            return res.json({ success: true, saved: false });
+        }
+
+        await Wishlist.create({ userId, itemId });
+        res.json({ success: true, saved: true });
+    } catch (err) {
+        // handle duplicate key race
+        if (err && err.code === 11000) return res.json({ success: true, saved: true });
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get wishlist items for logged-in user
+app.get('/api/wishlist', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const entries = await Wishlist.find({ userId })
+            .populate('itemId', 'title category price condition description seller_name department year image isSold seller_email sellerId')
+            .sort({ createdAt: -1 });
+
+        const items = entries.map(e => e.itemId).filter(Boolean);
+        res.json({ success: true, data: items });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════
 //  ITEM ROUTES
 // ═══════════════════════════════════════════════════
+
 
 // Get all items (phone NEVER included)
 app.get('/api/items', async (req, res) => {
