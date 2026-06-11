@@ -1,4 +1,4 @@
-const BASE_URL = 'https://retailsystem-1.onrender.com';
+const BASE_URL = 'https://retailsystem-1.onrender.com'; // change if needed
 const API_WISHLIST_URL = `${BASE_URL}/api/wishlist`;
 const API_WISHLIST_TOGGLE_URL = `${BASE_URL}/api/wishlist/toggle`;
 
@@ -18,24 +18,127 @@ function escapeHtml(str) {
 const wishlistGrid = document.getElementById('wishlistGrid');
 const wishlistMeta = document.getElementById('wishlistMeta');
 
+function renderStatus(type, msg) {
+  // type: loading | error | empty | success
+  const safe = msg == null ? '' : String(msg);
+
+  if (!wishlistGrid) return;
+
+  if (type === 'loading') {
+    wishlistMeta && (wishlistMeta.textContent = safe || 'Loading...');
+    wishlistGrid.innerHTML = '<div class="no-items">Loading wishlist…</div>';
+    return;
+  }
+
+  if (type === 'error') {
+    wishlistMeta && (wishlistMeta.textContent = safe || 'Error');
+    wishlistGrid.innerHTML = `
+      <div class="no-items" style="padding:2rem 1rem; max-width:720px; margin:0 auto;">
+        <div style="font-size:1.1rem; font-weight:800; color:#111827; margin-bottom:.6rem;">Could not load wishlist</div>
+        <div style="color:#6b7280; margin-bottom:1rem;">${escapeHtml(safe || 'Please try again later.')}</div>
+        <div style="display:flex; gap:.7rem; justify-content:center; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="wishlistRetryBtn" style="background:#6366f1;color:#fff;border:none;border-radius:10px;padding:.7rem 1.2rem;cursor:pointer;">Retry</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('wishlistRetryBtn')?.addEventListener('click', () => {
+      loadWishlist();
+    });
+
+    return;
+  }
+
+  if (type === 'empty') {
+    wishlistMeta && (wishlistMeta.textContent = safe || '0 saved items');
+    wishlistGrid.innerHTML = '<div class="no-items">No wishlist items yet. Save something ❤️</div>';
+    return;
+  }
+
+  // success
+  wishlistMeta && (wishlistMeta.textContent = safe || '');
+}
+
+async function fetchJsonWithFallback(urls, options) {
+  let lastErr = null;
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text().catch(() => '');
+
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+
+      if (res.ok) {
+        return data ?? { success: false, error: text || `HTTP ${res.status}` };
+      }
+
+      lastErr = data?.error || data || { success: false, error: `HTTP ${res.status}` };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  return lastErr;
+}
+
+async function requestWishlist() {
+  const token = getToken();
+  if (!token) return { success: false, error: 'Please login to view your wishlist.' };
+
+  const urls = [
+    API_WISHLIST_URL,
+    // fallback: same-origin
+    '/api/wishlist'
+  ];
+
+  return fetchJsonWithFallback(urls, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
+
+async function requestToggle(itemId) {
+  const token = getToken();
+  if (!token) return { success: false, error: 'Please login first.' };
+
+  const urls = [
+    API_WISHLIST_TOGGLE_URL,
+    // fallback: same-origin
+    '/api/wishlist/toggle'
+  ];
+
+  return fetchJsonWithFallback(urls, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ itemId })
+  });
+}
+
 async function loadWishlist() {
   const token = getToken();
   if (!token) {
-    wishlistMeta.textContent = 'Please login to view your wishlist.';
+    renderStatus('error', 'Please login to view your wishlist.');
     wishlistGrid.innerHTML = '';
     return;
   }
 
-  wishlistMeta.textContent = 'Loading...';
-  try {
-    const res = await fetch(API_WISHLIST_URL, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  renderStatus('loading', 'Loading wishlist…');
 
-    const result = await res.json().catch(() => ({}));
-    if (!result.success) {
-      wishlistMeta.textContent = result.error || 'Could not load wishlist.';
-      wishlistGrid.innerHTML = '';
+  try {
+    const result = await requestWishlist();
+
+    if (!result || result.success === false) {
+      const err = result?.error || 'Could not load wishlist.';
+      renderStatus('error', err);
       return;
     }
 
@@ -43,11 +146,9 @@ async function loadWishlist() {
     wishlistMeta.textContent = `${items.length} saved item${items.length === 1 ? '' : 's'}`;
 
     if (items.length === 0) {
-      wishlistGrid.innerHTML = '<div class="no-items">No wishlist items yet. Save something ❤️</div>';
-      wishlistMeta.textContent = '0 saved item';
+      renderStatus('empty', '0 saved item');
       return;
     }
-
 
     wishlistGrid.innerHTML = items
       .map((item) => {
@@ -92,32 +193,30 @@ async function loadWishlist() {
         toggleWishlist(itemId);
       });
     });
-  } catch {
-    wishlistMeta.textContent = 'Error loading wishlist.';
+  } catch (e) {
+    const msg = e?.message || 'Error loading wishlist.';
+    renderStatus('error', msg);
   }
 }
 
 async function toggleWishlist(itemId) {
+  if (!itemId) return;
+
   const token = getToken();
   if (!token) return;
 
+  // optimistic: disable button(s) briefly
   try {
-    const res = await fetch(API_WISHLIST_TOGGLE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ itemId })
-    });
+    const result = await requestToggle(itemId);
+    if (!result || result.success === false) {
+      const err = result?.error || 'Could not update wishlist.';
+      renderStatus('error', err);
+      return;
+    }
 
-    const result = await res.json().catch(() => ({}));
-    if (!result.success) return;
-
-    // if removed, reload
     await loadWishlist();
-  } catch {
-    // ignore
+  } catch (e) {
+    renderStatus('error', e?.message || 'Could not update wishlist.');
   }
 }
 
