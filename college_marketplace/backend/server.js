@@ -193,7 +193,8 @@ app.post('/api/auth/login', async (req, res) => {
                 name: user.name,
                 email: user.email,
                 department: user.department,
-                isVerified: user.isVerified
+                isVerified: user.isVerified,
+                profileImage: user.profileImage
             }
         });
     } catch (err) {

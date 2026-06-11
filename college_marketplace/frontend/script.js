@@ -115,6 +115,21 @@ loginForm.addEventListener('submit', async e => {
         if (result.success) {
             localStorage.setItem('token', result.token);
             localStorage.setItem('user', JSON.stringify(result.user));
+
+            // Ensure profileImage is always present after login
+            try {
+                const meRes = await fetch(`${BASE_URL}/api/users/me`, {
+                    headers: { 'Authorization': `Bearer ${result.token}` }
+                });
+                const meJson = await meRes.json().catch(() => ({}));
+                if (meRes.ok && meJson?.success && meJson?.data) {
+                    const merged = { ...result.user, ...meJson.data };
+                    localStorage.setItem('user', JSON.stringify(merged));
+                }
+            } catch {
+                // ignore; UI will fallback to whatever is in result.user
+            }
+
             authModal.style.display = 'none';
             loginForm.reset();
             updateAuthUI();
