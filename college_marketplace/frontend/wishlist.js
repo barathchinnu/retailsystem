@@ -44,8 +44,10 @@ async function loadWishlist() {
 
     if (items.length === 0) {
       wishlistGrid.innerHTML = '<div class="no-items">No wishlist items yet. Save something ❤️</div>';
+      wishlistMeta.textContent = '0 saved item';
       return;
     }
+
 
     wishlistGrid.innerHTML = items
       .map((item) => {
