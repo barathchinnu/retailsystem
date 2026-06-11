@@ -28,6 +28,17 @@
     .hidden{display:none;}
     .admin-chat-item{padding:12px;border:1px solid #e5e7eb;border-radius:12px;margin-top:10px;background:#fff;}
     .pill{background:#eef2ff;border:1px solid #e0e7ff;color:#3730a3;border-radius:999px;padding:6px 10px;font-size:.85rem;font-weight:800;display:inline-block;}
+
+    /* Charts */
+    .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-top:14px;}
+    .chart-wrap{background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid #e5e7eb;border-radius:12px;padding:12px;}
+    .chart-title{font-weight:900;color:#111827;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+    .chart-sub{font-size:.85rem;color:#6b7280;margin-top:-6px;margin-bottom:8px;}
+    canvas{width:100% !important;height:260px !important;}
+    @media (max-width:768px){
+      canvas{height:240px !important;}
+      .admin-wrapper{padding-top:90px;}
+    }
   </style>
 </head>
 <body>
@@ -46,15 +57,38 @@
       <div id="adminContent" class="hidden">
         <div class="admin-grid" style="margin-top:14px">
           <div class="kpi"><div class="label">Total Users</div><div class="value" id="kpiUsers">0</div></div>
-          <div class="kpi"><div class="label">Total Items</div><div class="value" id="kpiItems">0</div></div>
+          <div class="kpi"><div class="label">Total Listings</div><div class="value" id="kpiItems">0</div></div>
           <div class="kpi"><div class="label">Total Chats</div><div class="value" id="kpiChats">0</div></div>
           <div class="kpi"><div class="label">Flagged Chats</div><div class="value" id="kpiFlagged">0</div></div>
+          <div class="kpi" style="background:linear-gradient(135deg,#f97316,#ef4444)"><div class="label">Deals Completed</div><div class="value" id="kpiDeals">0</div></div>
+          <div class="kpi" style="background:linear-gradient(135deg,#10b981,#0ea5e9)"><div class="label">Revenue</div><div class="value" id="kpiRevenue">₹0</div></div></div>
         </div>
 
-        <div class="admin-card">
+        <div class="charts-grid">
+          <div class="chart-wrap">
+            <div class="chart-title"><i class="fas fa-chart-column"></i> Platform Snapshot</div>
+            <div class="chart-sub">Users vs Listings vs Chats vs Flagged</div>
+            <canvas id="chartSnapshot"></canvas>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="chart-title"><i class="fas fa-user-check"></i> Top Sellers: Verified Split</div>
+            <div class="chart-sub">Based on Top Sellers list</div>
+            <canvas id="chartVerifiedSplit"></canvas>
+          </div>
+
+          <div class="chart-wrap" style="grid-column:1/-1">
+            <div class="chart-title"><i class="fas fa-star"></i> Top Sellers: Rating</div>
+            <div class="chart-sub">Highest rated verified/unverified sellers</div>
+            <canvas id="chartTopSellersRating"></canvas>
+          </div>
+        </div>
+
+        <div class="admin-card" style="margin-top:12px">
           <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-clipboard-list"></i> Top Sellers</div>
           <div id="topSellers" class="muted">Loading...</div>
         </div>
+
 
         <div class="admin-card">
           <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-flag"></i> Flagged Chats</div>
@@ -74,8 +108,133 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     const BASE_URL = 'https://retailsystem-1.onrender.com';
+
+    const chartRegistry = {
+      snapshot: null,
+      verifiedSplit: null,
+      topSellersRating: null
+    };
+
+    function destroyChart(key){
+      try{
+        const c = chartRegistry[key];
+        if(c){ c.destroy(); }
+      }catch{ /* ignore */ }
+      chartRegistry[key] = null;
+    }
+
+    function renderCharts(stats){
+      const d = stats || {};
+      // Ensure numbers
+      const totalUsers = Number(d.totalUsers || 0);
+      const totalItems = Number(d.totalItems || 0);
+      const totalChats = Number(d.totalChats || 0);
+      const flaggedChats = Number(d.flaggedChats || 0);
+      const topSellers = Array.isArray(d.topSellers) ? d.topSellers : [];
+
+      // Snapshot bar
+      {
+        destroyChart('snapshot');
+        const ctx = document.getElementById('chartSnapshot');
+        if(ctx){
+          chartRegistry.snapshot = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['Users', 'Listings', 'Chats', 'Flagged'],
+              datasets: [{
+                label: 'Count',
+                data: [totalUsers, totalItems, totalChats, flaggedChats],
+                backgroundColor: ['#6366f1','#8b5cf6','#4f46e5','#ef4444'],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (x)=>` ${x.parsed.y}` } }
+              },
+              scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } }
+              }
+            }
+          });
+        }
+      }
+
+      // Verified split doughnut
+      {
+        destroyChart('verifiedSplit');
+        const ctx = document.getElementById('chartVerifiedSplit');
+        if(ctx){
+          const verified = topSellers.filter(s => !!s.isVerified).length;
+          const unverified = topSellers.length - verified;
+
+          chartRegistry.verifiedSplit = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: ['Verified', 'Not verified'],
+              datasets: [{
+                data: [verified, unverified],
+                backgroundColor: ['#10b981', '#94a3b8'],
+                borderWidth: 0,
+                hoverOffset: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: (x)=>` ${x.label}: ${x.parsed}` } }
+              },
+              cutout: '60%'
+            }
+          });
+        }
+      }
+
+      // Top sellers rating bar
+      {
+        destroyChart('topSellersRating');
+        const ctx = document.getElementById('chartTopSellersRating');
+        if(ctx){
+          const sorted = [...topSellers].sort((a,b)=>(Number(b.rating||0)-Number(a.rating||0))).slice(0,5);
+          const labels = sorted.map(s => s.name);
+          const data = sorted.map(s => Number(s.rating || 0));
+          const colors = sorted.map(s => s.isVerified ? '#6366f1' : '#94a3b8');
+
+          chartRegistry.topSellersRating = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Rating',
+                data,
+                backgroundColor: colors,
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (x)=>` ${x.parsed.y} ⭐` } }
+              },
+              scales: {
+                y: { beginAtZero: true, suggestedMax: 5, ticks: { precision: 1 } }
+              }
+            }
+          });
+        }
+      }
+    }
+
 
     const ADMIN_KEY_STORAGE = 'admin_key';
 
@@ -155,6 +314,8 @@
       $('kpiChats').textContent = d.totalChats;
       $('kpiFlagged').textContent = d.flaggedChats;
       renderTopSellers(d.topSellers);
+      renderCharts(d);
+
 
       const flaggedRes = await api('/api/admin/flagged');
       if(!flaggedRes.result?.success) throw new Error(flaggedRes.result?.error || 'Flagged chats failed');
