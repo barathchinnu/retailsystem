@@ -370,7 +370,8 @@ app.patch('/api/items/:id', authMiddleware, async (req, res) => {
         }
 
         // Do not allow changing sellerId/email/phone directly
-        const allowed = ['title', 'category', 'price', 'condition', 'description', 'year', 'image', 'seller_name', 'department'];
+        const allowed = ['title', 'category', 'price', 'condition', 'description', 'year', 'image', 'seller_name', 'department', 'isSold'];
+
         const updates = {};
         for (const k of allowed) {
             if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -581,11 +582,22 @@ app.post('/api/ratings', authMiddleware, async (req, res) => {
         if (chat.buyerId.toString() !== raterId && chat.sellerId.toString() !== raterId)
             return res.status(403).json({ success: false, error: 'You are not part of this chat.' });
 
+        // Ensure the deal is completed (seller marked the item as SOLD)
+        const item = await Item.findById(chat.itemId).select('isSold');
+        if (!item) return res.status(404).json({ success: false, error: 'Associated item not found.' });
+        if (!item.isSold) {
+            return res.status(400).json({
+                success: false,
+                error: 'Deal not completed yet. Ratings are enabled only after Mark as Sold.'
+            });
+        }
+
         // Prevent double rating
         if (await Rating.findOne({ chatId, raterId }))
             return res.status(400).json({ success: false, error: 'You have already rated this deal.' });
 
         const rating = new Rating({ chatId, raterId, ratedId: ratedUserId, score, comment });
+
         await rating.save();
 
         // Update user aggregate

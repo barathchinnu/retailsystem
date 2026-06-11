@@ -412,7 +412,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateAuthUI();
     loadItems();
+    // load wishlist heart states after items are rendered
+    // (syncWishlistHearts is called again after toggle)
 });
+
+// initial sync after items first load
+(async function initWishlistHeartsOnce() {
+    // wait a bit for loadItems() -> displayItems() to create heart buttons
+    setTimeout(() => {
+        syncWishlistHearts();
+    }, 800);
+})();
 
 // ─── Load Items ────────────────────────────────────────────────────────────────
 async function loadItems(filters = {}) {
@@ -439,6 +449,9 @@ function displayItems(items) {
       <div class="item-image" ${item.image ? `style="background-image:url('${item.image}');background-size:cover;background-position:center;"` : ''}>
         ${!item.image ? `<i class="fas fa-${getCategoryIcon(item.category)}"></i>` : ''}
         ${item.isSold ? '<div class="sold-badge">SOLD</div>' : ''}
+        <button class="wishlist-toggle" data-itemid="${item._id}" title="Save to wishlist" style="position:absolute;top:10px;left:10px;border:none;background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);border-radius:999px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;">
+          <i class="fas fa-heart" aria-hidden="true" style="color:#ef4444;"></i>
+        </button>
       </div>
       <div class="item-content">
         <div class="item-title">${item.title}</div>
@@ -456,6 +469,46 @@ function displayItems(items) {
 
     document.querySelectorAll('.item-card').forEach(card => {
         card.addEventListener('click', () => showItemModal(card.dataset.id));
+    });
+
+    // Wishlist toggle (heart button inside card)
+    document.querySelectorAll('.wishlist-toggle').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const token = getToken();
+            if (!token) {
+                authModal.style.display = 'flex';
+                switchToTab('login');
+                showToast('⚠️ Please login to save items.');
+                return;
+            }
+
+            const itemId = btn.getAttribute('data-itemid');
+            try {
+                const res = await fetch(`${BASE_URL}/api/wishlist/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ itemId })
+                });
+
+                const text = await res.text().catch(() => '');
+                let result;
+                try { result = text ? JSON.parse(text) : {}; } catch { result = {}; }
+
+                if (!res.ok || result.success === false) {
+                    showToast(result.error || `Could not update wishlist (HTTP ${res.status})`);
+                    return;
+                }
+
+
+                showToast(result.saved ? '❤️ Saved to wishlist' : 'Removed from wishlist');
+                await syncWishlistHearts();
+            } catch {
+                showToast('❌ Wishlist action failed');
+            }
+        });
     });
 
     const observer = new IntersectionObserver(entries => {
@@ -495,7 +548,10 @@ async function showItemModal(id) {
             ? `
               <div class="seller-actions" style="margin-top:1rem; display:flex; gap:0.6rem; flex-wrap:wrap;">
                 <button class="btn btn-ghost" id="sellerEditBtn" style="border:1px solid #e5e7eb; background:#fff;">✏️ Edit</button>
-                <button class="btn btn-ghost" id="sellerToggleSoldBtn" style="border:1px solid #e5e7eb; background:#fff;">${item.isSold ? '✅ Mark as Available' : '🔴 Mark as Sold'}</button>
+                <button class="btn btn-ghost" id="sellerToggleSoldBtn" style="border:1px solid #e5e7eb; background:#fff;">${item.isSold ? '✅ Mark as Available' : '🔥 Mark as Sold'}</button>
+
+                <div style="width:100%;font-weight:800;color:#111827;opacity:.9;text-align:center;margin-top:6px;">Status: ${item.isSold ? 'SOLD' : 'LISTED'}</div>
+
                 <button class="btn btn-danger" id="sellerDeleteBtn" style="background:#ef4444; color:#fff; border:none;">🗑️ Delete</button>
               </div>
               <div id="sellerEditForm" style="display:none; margin-top:1rem;">
@@ -1047,10 +1103,32 @@ async function reportChat() {
 // ─── Rating Panel ──────────────────────────────────────────────────────────────
 async function openRatePanel() {
     if (!activeChatId) return;
+
+    // Load chat (backend will reject if item is not marked SOLD)
     const res = await fetch(`${CHAT_URL}/${activeChatId}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
     const result = await res.json();
     if (!result.success) return;
     const chat = result.data;
+
+    // Gate UI until deal completion
+    const itemId = chat?.itemId?._id || chat?.itemId;
+    if (!itemId) {
+        showToast('⚠️ Could not determine deal completion status.');
+        return;
+    }
+
+    const itemRes = await fetch(`${API_URL}/${itemId}`);
+    const itemJson = await itemRes.json().catch(() => ({}));
+    if (!itemJson?.success) {
+        showToast('⚠️ Could not verify deal completion.');
+        return;
+    }
+
+    if (!itemJson.data?.isSold) {
+        showToast('🔒 Deal not completed yet. Mark the item as SOLD to unlock ratings.');
+        return;
+    }
+
     const me = getUser();
     const myId = me?.id || me?._id;
 
@@ -1223,3 +1301,29 @@ function formatTime(iso) {
     const d = new Date(iso);
     return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
+
+// sync wishlist heart button states (called after toggle/login)
+async function syncWishlistHearts() {
+    const token = getToken();
+    if (!token) return;
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/wishlist`, { headers: { Authorization: `Bearer ${token}` } });
+        const result = await res.json().catch(() => ({}));
+        if (!result.success) return;
+
+        const savedIds = new Set((result.data || []).map(i => String(i._id)));
+
+        document.querySelectorAll('.wishlist-toggle').forEach(btn => {
+            const id = btn.getAttribute('data-itemid');
+            const icon = btn.querySelector('i.fas.fa-heart');
+            const isSaved = savedIds.has(String(id));
+            if (icon) {
+                icon.style.opacity = isSaved ? '1' : '0.35';
+            }
+        });
+    } catch {
+        // ignore
+    }
+}
+
