@@ -378,8 +378,25 @@
       $('chatDetails').textContent='Select a chat from the flagged list.';
     });
 
-    // Always lock on load.
+    function getLoggedInEmail(){
+      try{
+        const u = localStorage.getItem('user');
+        if(!u) return null;
+        const parsed = JSON.parse(u);
+        return parsed?.email || null;
+      }catch{ return null; }
+    }
+
+    // Admin dashboard allowed only for barath@kongu.edu
     (function init(){
+      const email = getLoggedInEmail();
+      // If not logged in as the admin email, keep locked.
+      if(email !== 'barath@kongu.edu'){
+        // also clear any saved admin key to avoid accidental unlocking
+        localStorage.removeItem(ADMIN_KEY_STORAGE);
+        setAuthUI(false);
+        return;
+      }
       setAuthUI(false);
     })();
   </script>
