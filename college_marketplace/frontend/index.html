@@ -7,6 +7,7 @@
     <title>College Marketplace - Buy & Sell Second Hand Items</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
 <body>
@@ -358,6 +359,8 @@
                     </div>
                     <div id="loginError" class="auth-error"></div>
                     <button type="submit" class="btn btn-primary btn-large btn-block">Login</button>
+                    <div class="auth-divider"><span>or</span></div>
+                    <div id="googleLoginBtnContainer" style="display:flex; justify-content:center; margin-top:1rem;"></div>
                 </form>
 
                 <!-- Register Form -->
@@ -391,6 +394,8 @@
                     </div>
                     <div id="registerError" class="auth-error"></div>
                     <button type="submit" class="btn btn-primary btn-large btn-block">Create Account</button>
+                    <div class="auth-divider"><span>or</span></div>
+                    <div id="googleRegisterBtnContainer" style="display:flex; justify-content:center; margin-top:1rem;"></div>
                 </form>
             </div>
         </div>

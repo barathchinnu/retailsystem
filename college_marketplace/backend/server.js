@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
 const app = express();
@@ -183,6 +184,68 @@ app.post('/api/auth/login', async (req, res) => {
         if (!user) return res.status(400).json({ success: false, error: 'No account found with this email.' });
         if (!await bcrypt.compare(password, user.password))
             return res.status(400).json({ success: false, error: 'Incorrect password.' });
+
+        const token = jwt.sign(
+            { id: user._id, name: user.name, email: user.email, department: user.department },
+            JWT_SECRET, { expiresIn: '7d' }
+        );
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                department: user.department,
+                isVerified: user.isVerified,
+                profileImage: user.profileImage
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Google Auth
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+app.post('/api/auth/google', async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) return res.status(400).json({ success: false, error: 'No credential provided.' });
+
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        const email = payload.email.toLowerCase();
+
+        if (!email.endsWith('@kongu.edu')) {
+            return res.status(400).json({ success: false, error: 'Only @kongu.edu emails are allowed.' });
+        }
+
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            // Auto register
+            const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+            user = new User({
+                name: payload.name,
+                email,
+                password: await bcrypt.hash(randomPassword, 10),
+                department: 'Not Specified', // Default for Google Auth
+                profileImage: payload.picture || ''
+            });
+            await user.save();
+        } else {
+            // Update profile image if it exists
+            if (payload.picture && !user.profileImage) {
+                user.profileImage = payload.picture;
+                await user.save();
+            }
+        }
 
         const token = jwt.sign(
             { id: user._id, name: user.name, email: user.email, department: user.department },

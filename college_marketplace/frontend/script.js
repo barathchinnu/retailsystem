@@ -162,6 +162,56 @@ registerForm.addEventListener('submit', async e => {
     } catch { showError(registerError, 'Could not connect to server.'); }
 });
 
+// ─── Google Auth ───────────────────────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = '726148564484-94ln0otf62bi2binfobql2t30datpij9.apps.googleusercontent.com';
+
+function handleGoogleCallback(response) {
+    clearAuthErrors();
+    fetch(`${AUTH_URL}/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential })
+    })
+    .then(res => res.json())
+    .then(result => {
+        if (result.success) {
+            localStorage.setItem('token', result.token);
+            localStorage.setItem('user', JSON.stringify(result.user));
+            authModal.style.display = 'none';
+            loginForm.reset();
+            registerForm.reset();
+            updateAuthUI();
+            showToast(`✅ Welcome, ${result.user.name.split(' ')[0]}!`);
+        } else {
+            showError(loginError, result.error);
+            showError(registerError, result.error);
+        }
+    })
+    .catch(() => {
+        showError(loginError, 'Could not connect to server.');
+        showError(registerError, 'Could not connect to server.');
+    });
+}
+
+window.addEventListener('load', () => {
+    if (window.google) {
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCallback
+        });
+        
+        const loginContainer = document.getElementById('googleLoginBtnContainer');
+        if (loginContainer) {
+            google.accounts.id.renderButton(loginContainer, { theme: "outline", size: "large", width: 250 });
+        }
+        
+        const registerContainer = document.getElementById('googleRegisterBtnContainer');
+        if (registerContainer) {
+            google.accounts.id.renderButton(registerContainer, { theme: "outline", size: "large", width: 250 });
+        }
+    }
+});
+
 // ─── Logout ────────────────────────────────────────────────────────────────────
 logoutBtn.addEventListener('click', e => {
     e.preventDefault();
