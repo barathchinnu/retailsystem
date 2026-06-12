@@ -139,27 +139,8 @@ loginForm.addEventListener('submit', async e => {
 });
 
 // ─── Register ──────────────────────────────────────────────────────────────────
-registerForm.addEventListener('submit', async e => {
-    e.preventDefault(); clearAuthErrors();
-    const name = document.getElementById('registerName').value;
-    const email = document.getElementById('registerEmail').value;
-    const department = document.getElementById('registerDept').value;
-    const password = document.getElementById('registerPassword').value;
-    const confirm = document.getElementById('registerConfirm').value;
-    if (!email.toLowerCase().endsWith('@kongu.edu')) { showError(registerError, 'Only @kongu.edu emails are allowed.'); return; }
-    if (password !== confirm) { showError(registerError, 'Passwords do not match.'); return; }
-    try {
-        const res = await fetch(`${AUTH_URL}/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, department }) });
-        const result = await res.json();
-        if (result.success) {
-            localStorage.setItem('token', result.token);
-            localStorage.setItem('user', JSON.stringify(result.user));
-            authModal.style.display = 'none';
-            registerForm.reset();
-            updateAuthUI();
-            showToast(`🎉 Account created! Welcome, ${result.user.name.split(' ')[0]}!`);
-        } else { showError(registerError, result.error); }
-    } catch { showError(registerError, 'Could not connect to server.'); }
+registerForm.addEventListener('submit', e => {
+    e.preventDefault();
 });
 
 // ─── Google Auth ───────────────────────────────────────────────────────────────
