@@ -655,6 +655,9 @@ async function showItemModal(id) {
                     }
                     showToast('✅ Status updated');
                     item.isSold = !item.isSold;
+                    if (item.isSold) {
+                        addNotification('sold', 'Item Sold', `Your item ${item.title} was marked as sold.`);
+                    }
                     await showItemModal(item._id);
                 } catch {
                     showToast('❌ Could not update status');
@@ -863,6 +866,14 @@ function startChatPolling() {
 
             const newCount = result.data?.messages?.length ?? 0;
             if (newCount !== chatLastSeenCount) {
+                if (newCount > chatLastSeenCount) {
+                    const latestMsg = result.data.messages[newCount - 1];
+                    const me = getUser();
+                    const myId = me?.id || me?._id;
+                    if (String(latestMsg.senderId) !== String(myId)) {
+                        addNotification('msg', 'New Message', `Message from ${latestMsg.senderName}`);
+                    }
+                }
                 chatLastSeenCount = newCount;
                 await loadChatMessages(activeChatId);
             }
@@ -1051,6 +1062,7 @@ async function requestPhoneReveal() {
             box.innerHTML = `<i class="fas fa-phone-alt"></i> <strong>${result.phone}</strong> — <a href="tel:+91${result.phone}">Call</a> | <a href="https://wa.me/91${result.phone}" target="_blank">WhatsApp</a>`;
             box.classList.remove('hidden');
             document.getElementById('revealPhoneBtn').innerHTML = '<i class="fas fa-unlock"></i> Number Unlocked';
+            addNotification('unlock', 'Number Unlocked', `You have unlocked the seller's phone number.`);
         } else {
             showToast('🔒 ' + result.error);
         }
@@ -1179,6 +1191,9 @@ async function openRatePanel() {
             console.log('[Rate] response', { status: r.status, body: rr });
             overlay.remove();
             showToast(rr.success ? `⭐ Rating submitted! Thanks.` : `❌ ${rr.error || 'Rating failed'}`);
+            if (rr.success) {
+                addNotification('star', 'Rating Submitted', `You rated ${other.name} ${selectedScore} stars.`);
+            }
         } catch (err) {
             console.error('[Rate] submit error', err);
             showToast('❌ Could not submit rating. Check console for details.');
@@ -1322,8 +1337,156 @@ async function syncWishlistHearts() {
                 icon.style.opacity = isSaved ? '1' : '0.35';
             }
         });
-    } catch {
+} catch {
         // ignore
     }
 }
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+let notifications = [];
+
+function loadNotifications() {
+    const user = getUser();
+    if (!user) return;
+    try {
+        const saved = localStorage.getItem(`notifications_${user.id || user._id}`);
+        notifications = saved ? JSON.parse(saved) : [];
+    } catch {
+        notifications = [];
+    }
+    renderNotifications();
+}
+
+function saveNotifications() {
+    const user = getUser();
+    if (!user) return;
+    localStorage.setItem(`notifications_${user.id || user._id}`, JSON.stringify(notifications));
+    renderNotifications();
+}
+
+function addNotification(type, title, desc) {
+    const user = getUser();
+    if (!user) return; // Only notify logged in users
+    notifications.unshift({
+        id: Date.now().toString(),
+        type,
+        title,
+        desc,
+        time: new Date().toISOString(),
+        read: false
+    });
+    
+    // Keep max 20 notifications
+    if (notifications.length > 20) notifications.pop();
+    
+    saveNotifications();
+    showToast(`🔔 ${title}`);
+}
+
+function renderNotifications() {
+    const badge = document.getElementById('notificationBadge');
+    const list = document.getElementById('notificationsList');
+    if (!badge || !list) return;
+
+    const unreadCount = notifications.filter(n => !n.read).length;
+
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+
+    if (notifications.length === 0) {
+        list.innerHTML = '<div class="no-notifications">No new notifications</div>';
+        return;
+    }
+
+    list.innerHTML = notifications.map(n => {
+        let iconHtml = '';
+        if (n.type === 'msg') iconHtml = '<i class="fas fa-envelope"></i>';
+        else if (n.type === 'unlock') iconHtml = '<i class="fas fa-unlock"></i>';
+        else if (n.type === 'sold') iconHtml = '<i class="fas fa-check-circle"></i>';
+        else if (n.type === 'star') iconHtml = '<i class="fas fa-star"></i>';
+        else iconHtml = '<i class="fas fa-bell"></i>';
+
+        return `
+            <div class="notification-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
+                <div class="notification-icon ${n.type}">
+                    ${iconHtml}
+                </div>
+                <div class="notification-content">
+                    <div class="notification-title">${escapeHtml(n.title)}</div>
+                    <div class="notification-desc">${escapeHtml(n.desc)}</div>
+                    <div class="notification-time">${formatTime(n.time)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Attach mark as read events
+    list.querySelectorAll('.notification-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const id = item.getAttribute('data-id');
+            const notif = notifications.find(n => n.id === id);
+            if (notif && !notif.read) {
+                notif.read = true;
+                saveNotifications();
+            }
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const notifBtn = document.getElementById('notificationsBtn');
+    const notifDrop = document.getElementById('notificationsDropdown');
+    const clearBtn = document.getElementById('clearNotificationsBtn');
+
+    if (notifBtn && notifDrop) {
+        notifBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const isVisible = notifDrop.style.display === 'block';
+            notifDrop.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                // Mark all as read when opening dropdown
+                let updated = false;
+                notifications.forEach(n => {
+                    if (!n.read) { n.read = true; updated = true; }
+                });
+                if (updated) saveNotifications();
+            }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!notifBtn.contains(e.target) && !notifDrop.contains(e.target)) {
+                notifDrop.style.display = 'none';
+            }
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            notifications = [];
+            saveNotifications();
+            if (notifDrop) notifDrop.style.display = 'none';
+        });
+    }
+
+    // load notifications initially
+    setTimeout(loadNotifications, 500); // slight delay to ensure user is loaded
+});
+
+// Update auth UI hook to load notifications on login
+const originalUpdateAuthUI = updateAuthUI;
+updateAuthUI = function() {
+    originalUpdateAuthUI();
+    if (getUser()) {
+        loadNotifications();
+    } else {
+        const badge = document.getElementById('notificationBadge');
+        if (badge) badge.style.display = 'none';
+    }
+};
 
