@@ -387,17 +387,24 @@
       }catch{ return null; }
     }
 
-    // Admin dashboard allowed only for barath@kongu.edu
+    // Allow only barath@kongu.edu to use this dashboard.
+    // Note: backend still enforces x-admin-key. If you see "Access denied",
+    // it means the entered admin key does not match the backend ADMIN_KEY.
     (function init(){
       const email = getLoggedInEmail();
-      // If not logged in as the admin email, keep locked.
       if(email !== 'barath@kongu.edu'){
-        // also clear any saved admin key to avoid accidental unlocking
+        // keep UI locked and block the login attempt
         localStorage.removeItem(ADMIN_KEY_STORAGE);
         setAuthUI(false);
-        return;
+        $('adminLoginBtn').disabled = true;
+        $('adminKeyInput').disabled = true;
+        $('adminAuthError').style.display = 'block';
+        $('adminAuthError').textContent = 'Only barath@kongu.edu can access this dashboard.';
+      } else {
+        setAuthUI(false);
+        $('adminLoginBtn').disabled = false;
+        $('adminKeyInput').disabled = false;
       }
-      setAuthUI(false);
     })();
   </script>
 </body>
