@@ -160,6 +160,172 @@ body.intro-active {
     border: none;
 }
 
+/* ── Nav icon buttons (Wishlist, Notifications) ───────────────────── */
+.nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: #374151;
+    text-decoration: none;
+    font-size: 1.15rem;
+    transition: background 0.2s, color 0.2s;
+    position: relative;
+}
+.nav-icon-btn:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+}
+
+/* ── Profile avatar trigger ───────────────────────────────────────── */
+.nav-avatar-trigger {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 10px 5px 5px;
+    border-radius: 999px;
+    transition: background 0.2s;
+    font-family: inherit;
+}
+.nav-avatar-trigger:hover {
+    background: rgba(99, 102, 241, 0.08);
+}
+.nav-avatar-trigger img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #6366f1;
+}
+.nav-avatar-trigger #navProfileIcon {
+    font-size: 1.85rem;
+    color: #6366f1;
+}
+.user-greeting-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.nav-chevron {
+    font-size: 0.7rem;
+    color: #6b7280;
+    transition: transform 0.25s ease;
+}
+.nav-avatar-trigger[aria-expanded="true"] .nav-chevron {
+    transform: rotate(180deg);
+}
+
+/* ── Profile dropdown panel ───────────────────────────────────────── */
+.nav-profile-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 230px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.07);
+    z-index: 1200;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.nav-profile-dropdown.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.npd-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+}
+.npd-avatar-wrap { flex-shrink: 0; }
+.npd-avatar-wrap img {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.7);
+}
+.npd-icon-fallback {
+    font-size: 2.4rem;
+    color: rgba(255,255,255,0.9);
+}
+.npd-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.npd-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.npd-dept {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.8);
+}
+.npd-divider {
+    height: 1px;
+    background: #f0f0f0;
+    margin: 4px 0;
+}
+.npd-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    text-decoration: none;
+    color: #374151;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+.npd-item:hover {
+    background: #f5f3ff;
+    color: #6366f1;
+}
+.npd-item:hover .npd-item-icon {
+    color: #6366f1;
+    background: #ede9fe;
+}
+.npd-item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+.npd-item--danger { color: #dc2626; }
+.npd-item--danger .npd-item-icon { color: #dc2626; background: #fee2e2; }
+.npd-item--danger:hover { background: #fff1f2; color: #b91c1c; }
+.npd-item--danger:hover .npd-item-icon { background: #fecaca; color: #b91c1c; }
+
 /* Buttons */
 .btn {
     padding: 0.5rem 1.5rem;

@@ -34,50 +34,60 @@ function getUser() { const u = localStorage.getItem('user'); return u ? JSON.par
 
 function updateAuthUI() {
     const user = getUser();
-    document.querySelectorAll('.auth-logged-out').forEach(el => el.style.display = user ? 'none' : 'list-item');
-    document.querySelectorAll('.auth-logged-in').forEach(el => el.style.display = user ? 'list-item' : 'none');
+    document.querySelectorAll('.auth-logged-out').forEach(el => el.style.display = user ? 'none' : '');
+    document.querySelectorAll('.auth-logged-in').forEach(el => el.style.display = user ? '' : 'none');
 
-    // Admin dashboard link only when logged in (still protected by admin key in dashboard)
     const adminLinkBtn = document.getElementById('adminLinkBtn');
     if (adminLinkBtn) {
-        adminLinkBtn.style.display = user ? 'list-item' : 'none';
+        adminLinkBtn.style.display = (user && user.isAdmin) ? '' : 'none';
     }
 
     if (user) {
-        const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
-        // Nav DP (base64)
-        const navImg = document.getElementById('navProfileImage');
-        const navIcon = document.getElementById('navProfileIcon');
+        const nameFirst = user.name ? user.name.split(' ')[0] : 'User';
         const pi = user.profileImage;
-        if (navImg) {
-            if (pi) {
-                navImg.src = pi;
-                navImg.style.display = 'block';
-                navIcon && (navIcon.style.display = 'none');
-            } else {
-                navImg.src = '';
-                navImg.style.display = 'none';
-                navIcon && (navIcon.style.display = 'block');
-            }
-        }
-        // Update greeting text + badge, but keep the DP/icon layout stable
-        const nameFirst = user.name.split(' ')[0];
-        const iconHtml = navIcon ? navIcon.outerHTML : '<i class="fas fa-user-circle" id="navProfileIcon"></i>';
-        const imgHtml = navImg ? navImg.outerHTML : '';
-        userGreeting.innerHTML = `${imgHtml || iconHtml} Hi, ${nameFirst}${badge}`;
+        const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
 
-        // Re-bind DP click after greeting HTML is re-rendered
-        const dp = document.getElementById('navProfileImage');
-        if (dp && dp.src) {
-            dp.style.cursor = 'pointer';
-            dp.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openDpPreview(dp.src);
-            };
+        // Trigger button avatar
+        const navImg  = document.getElementById('navProfileImage');
+        const navIcon = document.getElementById('navProfileIcon');
+        if (navImg) {
+            if (pi) { navImg.src = pi; navImg.style.display = 'block'; if (navIcon) navIcon.style.display = 'none'; }
+            else     { navImg.src = ''; navImg.style.display = 'none';  if (navIcon) navIcon.style.display = ''; }
         }
+        const greetEl = document.getElementById('userGreeting');
+        if (greetEl) greetEl.innerHTML = `Hi, ${nameFirst}${badge}`;
+
+        // Dropdown header
+        const dropImg  = document.getElementById('navProfileImageDrop');
+        const dropIcon = document.getElementById('navProfileIconDrop');
+        if (dropImg) {
+            if (pi) { dropImg.src = pi; dropImg.style.display = 'block'; if (dropIcon) dropIcon.style.display = 'none'; }
+            else     { dropImg.src = ''; dropImg.style.display = 'none';  if (dropIcon) dropIcon.style.display = ''; }
+        }
+        const npdName = document.getElementById('npd-name');
+        const npdDept = document.getElementById('npd-dept');
+        if (npdName) npdName.innerHTML = (user.name || 'User') + badge;
+        if (npdDept) npdDept.textContent = user.department || 'KEC Student';
     }
 }
+
+// ─── Profile Dropdown Toggle ───────────────────────────────────────────────────
+(function () {
+    const trigger  = document.getElementById('navAvatarTrigger');
+    const dropdown = document.getElementById('navProfileDropdown');
+    if (!trigger || !dropdown) return;
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && !trigger.contains(e.target)) {
+            dropdown.classList.remove('open');
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+    });
+})();
 
 
 // ─── Auth Modal ────────────────────────────────────────────────────────────────

@@ -47,7 +47,32 @@ userSchema.virtual('rating').get(function () {
         : null;
 });
 
+// Auto-assign admin status based on the specific email
+userSchema.pre('save', function (next) {
+    if (this.email) {
+        this.isAdmin = (this.email.toLowerCase() === 'barathm.24cse@kongu.edu');
+    }
+    next();
+});
+
 const User = mongoose.model('User', userSchema);
+
+// Synchronize admin status in the database on startup
+(async () => {
+    try {
+        await User.updateMany(
+            { email: { $ne: 'barathm.24cse@kongu.edu' } },
+            { $set: { isAdmin: false } }
+        );
+        await User.updateOne(
+            { email: 'barathm.24cse@kongu.edu' },
+            { $set: { isAdmin: true } }
+        );
+        console.log('🛡️ Admin email enforcement completed (barathm.24cse@kongu.edu only).');
+    } catch (err) {
+        console.error('❌ Admin initialization error:', err);
+    }
+})();
 
 // ── Item ──────────────────────────────────────────
 const itemSchema = new mongoose.Schema({
@@ -167,7 +192,8 @@ app.post('/api/auth/register', async (req, res) => {
                 name: user.name,
                 email: user.email,
                 department: user.department,
-                isVerified: user.isVerified
+                isVerified: user.isVerified,
+                isAdmin: user.isAdmin
             }
         });
     } catch (err) {
@@ -199,7 +225,8 @@ app.post('/api/auth/login', async (req, res) => {
                 email: user.email,
                 department: user.department,
                 isVerified: user.isVerified,
-                profileImage: user.profileImage
+                profileImage: user.profileImage,
+                isAdmin: user.isAdmin
             }
         });
     } catch (err) {
@@ -261,7 +288,8 @@ app.post('/api/auth/google', async (req, res) => {
                 email: user.email,
                 department: user.department,
                 isVerified: user.isVerified,
-                profileImage: user.profileImage
+                profileImage: user.profileImage,
+                isAdmin: user.isAdmin
             }
         });
     } catch (err) {
@@ -272,7 +300,7 @@ app.post('/api/auth/google', async (req, res) => {
 // ─── Profile (logged-in user) ─────────────────────────────────────────────
 app.get('/api/users/me', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('name email department isVerified profileImage');
+        const user = await User.findById(req.user.id).select('name email department isVerified profileImage isAdmin');
         if (!user) return res.status(404).json({ success: false, error: 'User not found.' });
         res.json({
             success: true,
@@ -282,7 +310,8 @@ app.get('/api/users/me', authMiddleware, async (req, res) => {
                 email: user.email,
                 department: user.department,
                 isVerified: user.isVerified,
-                profileImage: user.profileImage
+                profileImage: user.profileImage,
+                isAdmin: user.isAdmin
             }
         });
     } catch (err) {
@@ -322,7 +351,7 @@ app.patch('/api/users/me', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'No fields to update.' });
         }
 
-        const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('name email department isVerified profileImage');
+        const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('name email department isVerified profileImage isAdmin');
         if (!updated) return res.status(404).json({ success: false, error: 'User not found.' });
 
         res.json({ success: true, data: updated });

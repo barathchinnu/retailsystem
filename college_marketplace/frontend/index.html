@@ -84,27 +84,20 @@
                     
 
                     <!-- Logged out state -->
-
-
                     <li class="auth-logged-out"><a href="#" class="login-link" id="openLoginBtn">Login</a></li>
                     <li class="auth-logged-out"><a href="#" class="btn btn-register" id="openRegisterBtn">Register</a>
                     </li>
-                    <!-- Logged in state -->
+
+                    <!-- ── Logged in: Wishlist icon ── -->
                     <li class="auth-logged-in" style="display:none;">
-                        <span class="user-greeting" id="userGreeting">
-                            <img id="navProfileImage" src="" alt="DP" style="width:28px;height:28px;border-radius:999px;object-fit:cover;display:none;" />
-                            <i class="fas fa-user-circle" id="navProfileIcon"></i>
-                            Hi, User
-                        </span>
-                    </li>
-                    <li class="auth-logged-in" style="display:none;">
-                        <a href="#" class="btn btn-register" id="editProfileBtn" style="background:#111827; color:white !important;">
-                            <i class="fas fa-user-edit"></i> Edit Profile
+                        <a href="#" id="myWishlistBtn" class="nav-icon-btn" title="Wishlist">
+                            <i class="fas fa-heart"></i>
                         </a>
                     </li>
 
+                    <!-- ── Logged in: Notifications bell ── -->
                     <li class="auth-logged-in" style="display:none; position:relative;">
-                        <a href="#" id="notificationsBtn">
+                        <a href="#" id="notificationsBtn" class="nav-icon-btn" title="Notifications">
                             <i class="fas fa-bell"></i>
                             <span id="notificationBadge" class="notification-badge" style="display:none;">0</span>
                         </a>
@@ -119,29 +112,44 @@
                         </div>
                     </li>
 
-                    <li class="auth-logged-in" style="display:none;">
-                        <a href="#" id="myChatsBtn">
-                            <i class="fas fa-comments"></i> My Chats
-                        </a>
-                    </li>
-
-                    <li class="auth-logged-in" style="display:none;">
-                        <a href="#" id="myWishlistBtn">
-                            <i class="fas fa-heart"></i> Wishlist
-                        </a>
-                    </li>
-
-
-                    <li class="auth-logged-in" style="display:none;">
-                        <a href="admin-dashboard.html" class="btn btn-register" style="background:#111827; color:white !important;" id="adminLinkBtn">
-                            <i class="fas fa-user-shield"></i> Admin Dashboard
-                        </a>
-                    </li>
-
-                    <li class="auth-logged-in" style="display:none;">
-                        <a href="#" class="btn btn-logout" id="logoutBtn">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </a>
+                    <!-- ── Logged in: Profile avatar + dropdown ── -->
+                    <li class="auth-logged-in nav-profile-menu" id="navProfileMenu" style="display:none; position:relative;">
+                        <button class="nav-avatar-trigger" id="navAvatarTrigger" aria-haspopup="true" aria-expanded="false">
+                            <img id="navProfileImage" src="" alt="DP" style="display:none;"/>
+                            <i class="fas fa-user-circle" id="navProfileIcon"></i>
+                            <span id="userGreeting" class="user-greeting-text">Hi, User</span>
+                            <i class="fas fa-chevron-down nav-chevron"></i>
+                        </button>
+                        <div class="nav-profile-dropdown" id="navProfileDropdown">
+                            <div class="npd-header">
+                                <div class="npd-avatar-wrap">
+                                    <img id="navProfileImageDrop" src="" alt="DP" style="display:none;"/>
+                                    <i class="fas fa-user-circle npd-icon-fallback" id="navProfileIconDrop"></i>
+                                </div>
+                                <div class="npd-user-info">
+                                    <span class="npd-name" id="npd-name">User</span>
+                                    <span class="npd-dept" id="npd-dept"></span>
+                                </div>
+                            </div>
+                            <div class="npd-divider"></div>
+                            <a href="#" id="myChatsBtn" class="npd-item">
+                                <span class="npd-item-icon"><i class="fas fa-comments"></i></span>
+                                <span>My Chats</span>
+                            </a>
+                            <a href="#" id="editProfileBtn" class="npd-item">
+                                <span class="npd-item-icon"><i class="fas fa-user-edit"></i></span>
+                                <span>Edit Profile</span>
+                            </a>
+                            <a href="admin-dashboard.html" id="adminLinkBtn" class="npd-item" style="display:none;">
+                                <span class="npd-item-icon"><i class="fas fa-user-shield"></i></span>
+                                <span>Admin Dashboard</span>
+                            </a>
+                            <div class="npd-divider"></div>
+                            <a href="#" id="logoutBtn" class="npd-item npd-item--danger">
+                                <span class="npd-item-icon"><i class="fas fa-sign-out-alt"></i></span>
+                                <span>Logout</span>
+                            </a>
+                        </div>
                     </li>
 
                     <div id="profileModal" class="modal">
