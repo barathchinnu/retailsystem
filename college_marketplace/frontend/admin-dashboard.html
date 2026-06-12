@@ -61,7 +61,7 @@
           <div class="kpi"><div class="label">Total Chats</div><div class="value" id="kpiChats">0</div></div>
           <div class="kpi"><div class="label">Flagged Chats</div><div class="value" id="kpiFlagged">0</div></div>
           <div class="kpi" style="background:linear-gradient(135deg,#f97316,#ef4444)"><div class="label">Deals Completed</div><div class="value" id="kpiDeals">0</div></div>
-          <div class="kpi" style="background:linear-gradient(135deg,#10b981,#0ea5e9)"><div class="label">Revenue</div><div class="value" id="kpiRevenue">₹0</div></div></div>
+          <div class="kpi" style="background:linear-gradient(135deg,#10b981,#0ea5e9)"><div class="label">Revenue</div><div class="value" id="kpiRevenue">₹0</div></div>
         </div>
 
         <div class="charts-grid">
@@ -88,7 +88,6 @@
           <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-clipboard-list"></i> Top Sellers</div>
           <div id="topSellers" class="muted">Loading...</div>
         </div>
-
 
         <div class="admin-card">
           <div class="admin-title" style="margin-bottom:8px"><i class="fas fa-flag"></i> Flagged Chats</div>
@@ -128,7 +127,6 @@
 
     function renderCharts(stats){
       const d = stats || {};
-      // Ensure numbers
       const totalUsers = Number(d.totalUsers || 0);
       const totalItems = Number(d.totalItems || 0);
       const totalChats = Number(d.totalChats || 0);
@@ -158,9 +156,7 @@
                 legend: { display: false },
                 tooltip: { callbacks: { label: (x)=>` ${x.parsed.y}` } }
               },
-              scales: {
-                y: { beginAtZero: true, ticks: { precision: 0 } }
-              }
+              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
             }
           });
         }
@@ -226,15 +222,12 @@
                 legend: { display: false },
                 tooltip: { callbacks: { label: (x)=>` ${x.parsed.y} ⭐` } }
               },
-              scales: {
-                y: { beginAtZero: true, suggestedMax: 5, ticks: { precision: 1 } }
-              }
+              scales: { y: { beginAtZero: true, suggestedMax: 5, ticks: { precision: 1 } } }
             }
           });
         }
       }
     }
-
 
     const ADMIN_KEY_STORAGE = 'admin_key';
 
@@ -246,11 +239,22 @@
       $('adminContent').classList.toggle('hidden', !authed);
     }
 
+    function setAuthError(msg){
+      $('adminAuthError').textContent = msg;
+      $('adminAuthError').style.display = 'block';
+    }
+
     async function api(path, method='GET', body=null){
       const key = localStorage.getItem(ADMIN_KEY_STORAGE);
       const headers = { 'x-admin-key': key };
       if (body) headers['Content-Type'] = 'application/json';
-      const res = await fetch(`${BASE_URL}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      });
+
       const result = await res.json().catch(()=>({success:false,error:'Bad JSON'}));
       return { res, result };
     }
@@ -305,6 +309,7 @@
     }
 
     async function loadAll(){
+      // Only called after admin key is set; server will verify x-admin-key.
       const { result } = await api('/api/admin/stats');
       if(!result?.success) throw new Error(result?.error || 'Admin stats failed');
 
@@ -315,7 +320,6 @@
       $('kpiFlagged').textContent = d.flaggedChats;
       renderTopSellers(d.topSellers);
       renderCharts(d);
-
 
       const flaggedRes = await api('/api/admin/flagged');
       if(!flaggedRes.result?.success) throw new Error(flaggedRes.result?.error || 'Flagged chats failed');
@@ -351,14 +355,19 @@
     $('adminLoginBtn').addEventListener('click', async ()=>{
       const key = $('adminKeyInput').value.trim();
       if(!key) return;
+
+      // set key first; then server validates.
       localStorage.setItem(ADMIN_KEY_STORAGE, key);
+
       try{
-        setAuthUI(true);
+        // do not unlock until server succeeds
         await loadAll();
+        setAuthUI(true);
       }catch(e){
+        // harden: if invalid key, clear it.
+        localStorage.removeItem(ADMIN_KEY_STORAGE);
         setAuthUI(false);
-        $('adminAuthError').textContent = e.message;
-        $('adminAuthError').style.display='block';
+        setAuthError(e.message);
       }
     });
 
@@ -369,15 +378,9 @@
       $('chatDetails').textContent='Select a chat from the flagged list.';
     });
 
-    // auto-load if key already set
+    // Always lock on load.
     (function init(){
-      const existing = localStorage.getItem(ADMIN_KEY_STORAGE);
-      if(existing){
-        setAuthUI(true);
-        loadAll().catch(()=>setAuthUI(false));
-      }else{
-        setAuthUI(false);
-      }
+      setAuthUI(false);
     })();
   </script>
 </body>
