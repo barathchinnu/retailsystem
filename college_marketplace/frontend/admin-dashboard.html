@@ -353,11 +353,14 @@
     }
 
     $('adminLoginBtn').addEventListener('click', async ()=>{
-      const key = $('adminKeyInput').value.trim();
+const key = $('adminKeyInput').value.trim();
       if(!key) return;
 
       // set key first; then server validates.
       localStorage.setItem(ADMIN_KEY_STORAGE, key);
+      // normalize: backend expects exact ADMIN_KEY string
+      console.log('[ADMIN KEY DEBUG]', { providedKeyLength: String(key || '').length });
+
 
       try{
         // do not unlock until server succeeds

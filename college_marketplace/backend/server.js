@@ -120,9 +120,18 @@ function authMiddleware(req, res, next) {
 
 function adminMiddleware(req, res, next) {
     const key = req.headers['x-admin-key'];
+
+    // Debug (remove after fixing): helps confirm whether frontend key matches backend env.
+    // We log only length to avoid leaking the secret.
+    console.log('[ADMIN_KEY DEBUG]', {
+        adminKeyLength: String(ADMIN_KEY || '').length,
+        providedKeyLength: String(key || '').length
+    });
+
     if (key !== ADMIN_KEY) return res.status(403).json({ success: false, error: 'Admin access denied.' });
     next();
 }
+
 
 // ═══════════════════════════════════════════════════
 //  AUTH ROUTES
