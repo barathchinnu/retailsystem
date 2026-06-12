@@ -881,7 +881,6 @@ function startChatPolling() {
     const panel = document.getElementById('chatPanel');
     if (!panel) return;
 
-    // set initial count based on current DOM
     chatLastSeenCount = document.getElementById('chatMessages')?.querySelectorAll('.chat-msg')?.length ?? 0;
 
     chatPollTimer = setInterval(async () => {
@@ -905,13 +904,12 @@ function startChatPolling() {
                         addNotification('msg', 'New Message', `Message from ${latestMsg.senderName}`);
                     }
                 }
-                chatLastSeenCount = newCount;
-                await loadChatMessages(activeChatId);
+                await loadChatMessages(activeChatId, false);
             }
         } catch {
             // ignore poll errors
         }
-    }, 2000);
+    }, 800);
 }
 
 
@@ -1010,12 +1008,12 @@ async function openChat(itemId) {
         const result = await res.json();
         if (!result.success) { showToast('❌ ' + result.error); return; }
         activeChatId = result.data._id;
-        await loadChatMessages(activeChatId);
+        await loadChatMessages(activeChatId, true);
         document.getElementById('chatPanel').classList.add('open');
     } catch { showToast('❌ Could not open chat. Check your connection.'); }
 }
 
-async function loadChatMessages(chatId) {
+async function loadChatMessages(chatId, forceReset = false) {
     try {
         const start = performance.now();
         const res = await fetch(`${CHAT_URL}/${chatId}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
@@ -1025,10 +1023,6 @@ async function loadChatMessages(chatId) {
 
         const chat = result.data;
         const me = getUser();
-
-        console.log("CHAT =", chat);
-        console.log("ME =", me);
-
         const myId = me?.id || me?._id;
 
         const other = String(chat.buyerId?._id) === String(myId)
@@ -1041,20 +1035,66 @@ async function loadChatMessages(chatId) {
         document.getElementById('chatOtherUser').textContent = `${other.name}${verifiedMark} • ${ratingStr}`;
 
         const msgs = document.getElementById('chatMessages');
-        msgs.innerHTML = chat.messages.length === 0
-            ? '<div class="no-msgs">No messages yet. Say hi! 👋</div>'
-            : chat.messages.map(m => {
-                const isMine = String(m.senderId) === String(me?.id || me?._id);
-                return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
-                  <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
-                  ${m.image ? `<span class="msg-image"><img src="${m.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
-                  ${m.text ? `<span class="msg-text">${escapeHtml(m.text)}</span>` : ''}
-                  <span class="msg-time">${formatTime(m.createdAt)}</span>
-                </div>`;
-            }).join('');
-        msgs.scrollTop = msgs.scrollHeight;
+        if (!msgs) return;
 
-        // Show revealed phone if already unlocked
+        if (forceReset || msgs.children.length <= 1 || msgs.querySelector('.no-msgs')) {
+            msgs.innerHTML = chat.messages.length === 0
+                ? '<div class="no-msgs">No messages yet. Say hi! 👋</div>'
+                : chat.messages.map(m => {
+                    const isMine = String(m.senderId) === String(myId);
+                    return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}" id="${m._id}">
+                      <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
+                      ${m.image ? `<span class="msg-image"><img src="${m.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
+                      ${m.text ? `<span class="msg-text">${escapeHtml(m.text)}</span>` : ''}
+                      <span class="msg-time">${formatTime(m.createdAt)}</span>
+                    </div>`;
+                }).join('');
+            msgs.scrollTop = msgs.scrollHeight;
+            chatLastSeenCount = chat.messages.length;
+        } else {
+            const currentRenderedIds = new Set(Array.from(msgs.children).map(child => child.id).filter(Boolean));
+            let appended = false;
+            
+            chat.messages.forEach(m => {
+                if (!currentRenderedIds.has(m._id)) {
+                    const isMine = String(m.senderId) === String(myId);
+                    let tempEl = isMine ? msgs.querySelector('.chat-msg.mine.pending') : null;
+                    
+                    if (tempEl) {
+                        tempEl.id = m._id;
+                        tempEl.classList.remove('pending');
+                        const timeEl = tempEl.querySelector('.msg-time');
+                        if (timeEl) timeEl.textContent = formatTime(m.createdAt);
+                        // If it has an image and was base64 pending, replace source with permanent URL if needed
+                        if (m.image) {
+                            const imgEl = tempEl.querySelector('.msg-image img');
+                            if (imgEl) {
+                                imgEl.src = m.image;
+                                imgEl.style.opacity = '1';
+                            }
+                        }
+                    } else {
+                        const div = document.createElement('div');
+                        div.id = m._id;
+                        div.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
+                        div.innerHTML = `
+                          <span class="msg-name">${isMine ? 'You' : m.senderName}</span>
+                          ${m.image ? `<span class="msg-image"><img src="${m.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
+                          ${m.text ? `<span class="msg-text">${escapeHtml(m.text)}</span>` : ''}
+                          <span class="msg-time">${formatTime(m.createdAt)}</span>
+                        `;
+                        msgs.appendChild(div);
+                        appended = true;
+                    }
+                }
+            });
+            
+            if (appended) {
+                msgs.scrollTop = msgs.scrollHeight;
+            }
+            chatLastSeenCount = chat.messages.length;
+        }
+
         if (chat.phoneRevealed) {
             document.getElementById('revealPhoneBtn').innerHTML = '<i class="fas fa-unlock"></i> Number Unlocked';
         }
@@ -1066,6 +1106,25 @@ async function sendMessage() {
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
     if (!text) return;
+
+    const msgs = document.getElementById('chatMessages');
+    if (msgs) {
+        const noMsgsEl = msgs.querySelector('.no-msgs');
+        if (noMsgsEl) noMsgsEl.remove();
+
+        const tempId = 'temp-' + Date.now();
+        const div = document.createElement('div');
+        div.id = tempId;
+        div.className = 'chat-msg mine pending';
+        div.innerHTML = `
+          <span class="msg-name">You</span>
+          <span class="msg-text">${escapeHtml(text)}</span>
+          <span class="msg-time">${formatTime(new Date())}</span>
+        `;
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+
     input.value = '';
     try {
         const res = await fetch(`${CHAT_URL}/${activeChatId}/messages`, {
@@ -1074,9 +1133,17 @@ async function sendMessage() {
             body: JSON.stringify({ text })
         });
         const result = await res.json();
-        if (result.success) { await loadChatMessages(activeChatId); }
-        else { showToast('❌ ' + result.error); }
-    } catch { showToast('❌ Message failed to send.'); }
+        if (result.success) { 
+            await loadChatMessages(activeChatId, false); 
+        } else { 
+            showToast('❌ ' + result.error); 
+            // Refresh full chat to remove any broken/temp messages
+            await loadChatMessages(activeChatId, true);
+        }
+    } catch { 
+        showToast('❌ Message failed to send.'); 
+        await loadChatMessages(activeChatId, true);
+    }
 }
 
 // ─── Phone Reveal ──────────────────────────────────────────────────────────────
@@ -1113,6 +1180,24 @@ async function sendImageMessage(file) {
             reader.readAsDataURL(file);
         });
 
+        const msgs = document.getElementById('chatMessages');
+        if (msgs) {
+            const noMsgsEl = msgs.querySelector('.no-msgs');
+            if (noMsgsEl) noMsgsEl.remove();
+
+            const tempId = 'temp-' + Date.now();
+            const div = document.createElement('div');
+            div.id = tempId;
+            div.className = 'chat-msg mine pending';
+            div.innerHTML = `
+              <span class="msg-name">You</span>
+              <span class="msg-image"><img src="${base64}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;opacity:0.6;"/></span>
+              <span class="msg-time">${formatTime(new Date())}</span>
+            `;
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
         const res = await fetch(`${CHAT_URL}/${activeChatId}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -1120,10 +1205,15 @@ async function sendImageMessage(file) {
         });
 
         const result = await res.json();
-        if (result.success) await loadChatMessages(activeChatId);
-        else showToast('❌ ' + result.error);
+        if (result.success) {
+            await loadChatMessages(activeChatId, false);
+        } else {
+            showToast('❌ ' + result.error);
+            await loadChatMessages(activeChatId, true);
+        }
     } catch {
         showToast('❌ Image message failed to send.');
+        await loadChatMessages(activeChatId, true);
     }
 }
 

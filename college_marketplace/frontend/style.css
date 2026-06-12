@@ -1537,6 +1537,11 @@ body.site-loaded #main-wrapper {
     display: flex;
     flex-direction: column;
     max-width: 78%;
+    transition: opacity 0.2s ease;
+}
+
+.chat-msg.pending {
+    opacity: 0.65;
 }
 
 .chat-msg.mine {
