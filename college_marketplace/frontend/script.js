@@ -1521,3 +1521,109 @@ updateAuthUI = function() {
     }
 };
 
+// ─── Wishlist Modal ────────────────────────────────────────────────────────────────────
+const wishlistModal = document.getElementById('wishlistModal');
+const wishlistModalClose = document.getElementById('wishlistModalClose');
+const myWishlistBtn = document.getElementById('myWishlistBtn');
+
+myWishlistBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const token = getToken();
+    if (!token) {
+        authModal.style.display = 'flex';
+        switchToTab('login');
+        return;
+    }
+    wishlistModal.style.display = 'block';
+    await renderWishlistModal();
+});
+
+wishlistModalClose?.addEventListener('click', () => {
+    wishlistModal.style.display = 'none';
+});
+
+window.addEventListener('click', e => {
+    if (e.target === wishlistModal) wishlistModal.style.display = 'none';
+});
+
+async function renderWishlistModal() {
+    const content = document.getElementById('wishlistContent');
+    const token = getToken();
+    if (!content || !token) return;
+
+    content.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading your saved items...</div>';
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/wishlist`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await res.json();
+
+        if (!result.success || result.data.length === 0) {
+            content.innerHTML = `
+                <div class="wishlist-empty">
+                    <i class="fas fa-heart-broken"></i>
+                    <p>Your wishlist is empty.</p>
+                    <p style="font-size:0.9rem; color:#9ca3af;">Click the ❤️ on any item to save it here!</p>
+                </div>`;
+            return;
+        }
+
+        content.innerHTML = `<div class="wishlist-grid">${result.data.map(item => {
+            const icon = getCategoryIcon(item.category);
+            const imgStyle = item.image
+                ? `background-image:url('${item.image}'); background-size:cover; background-position:center;`
+                : '';
+            return `
+                <div class="wishlist-card" data-itemid="${item._id}">
+                    <div class="wishlist-card-img" ${imgStyle ? `style="${imgStyle}"` : ''}>
+                        ${!item.image ? `<i class="fas fa-${icon}"></i>` : ''}
+                        ${item.isSold ? '<div class="wishlist-sold-badge">SOLD</div>' : ''}
+                        <button class="wishlist-remove-btn" data-removeid="${item._id}" title="Remove from wishlist">
+                            <i class="fas fa-heart"></i>
+                        </button>
+                    </div>
+                    <div class="wishlist-card-body">
+                        <div class="wishlist-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+                        <div class="wishlist-card-price">₹${item.price}</div>
+                        <div class="wishlist-card-meta">
+                            <i class="fas fa-user" style="margin-right:4px;"></i>${escapeHtml(item.seller_name)}
+                            &bull; ${escapeHtml(item.category.replace('_', ' '))}
+                        </div>
+                    </div>
+                </div>`;
+        }).join('')}</div>`;
+
+        // Click card -> open item modal
+        content.querySelectorAll('.wishlist-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('.wishlist-remove-btn')) return;
+                wishlistModal.style.display = 'none';
+                showItemModal(card.dataset.itemid);
+            });
+        });
+
+        // Remove (unsave) button
+        content.querySelectorAll('.wishlist-remove-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const itemId = btn.dataset.removeid;
+                try {
+                    await fetch(`${BASE_URL}/api/wishlist/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ itemId })
+                    });
+                    showToast('Removed from wishlist');
+                    await syncWishlistHearts();
+                    await renderWishlistModal();
+                } catch {
+                    showToast('❌ Could not remove item');
+                }
+            });
+        });
+
+    } catch {
+        content.innerHTML = '<div class="wishlist-empty"><i class="fas fa-exclamation-circle"></i><p>Could not load wishlist.</p></div>';
+    }
+}

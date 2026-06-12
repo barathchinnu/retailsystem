@@ -125,6 +125,12 @@
                         </a>
                     </li>
 
+                    <li class="auth-logged-in" style="display:none;">
+                        <a href="#" id="myWishlistBtn">
+                            <i class="fas fa-heart"></i> Wishlist
+                        </a>
+                    </li>
+
 
                     <li class="auth-logged-in" style="display:none;">
                         <a href="admin-dashboard.html" class="btn btn-register" style="background:#111827; color:white !important;" id="adminLinkBtn">
@@ -407,6 +413,20 @@
 
         </div>
 
+    </div>
+
+    <!-- Wishlist Modal -->
+    <div id="wishlistModal" class="modal">
+        <div class="modal-content" style="max-width:800px; padding:2rem;">
+            <span class="close" id="wishlistModalClose">&times;</span>
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem;">
+                <i class="fas fa-heart" style="color:#ef4444; font-size:1.5rem;"></i>
+                <h2 style="margin:0; font-size:1.5rem; color:#1f2937;">My Wishlist</h2>
+            </div>
+            <div id="wishlistContent">
+                <div class="loading">Loading your saved items...</div>
+            </div>
+        </div>
     </div>
     <script src="intro-animation.js"></script>
     <script src="script.js"></script>
