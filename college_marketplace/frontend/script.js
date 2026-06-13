@@ -836,31 +836,21 @@ async function loadMyChats(e) {
 
         const me = getUser();
 
-        container.innerHTML =
-            result.data.map(chat => {
+        container.innerHTML = '';
+        const myId = me.id || me._id;
 
-                const myId = me.id || me._id;
-
-                const other =
-                    String(chat.buyerId?._id) === String(myId)
-                        ? chat.sellerId
-                        : chat.buyerId;
-
-                return `
-            <div
-              class="chat-list-item"
-              onclick="openExistingChat('${chat._id}')"
-            >
-               <strong>
-                 ${chat.itemId?.title || 'Item'}
-               </strong>
-
-               <br>
-
-               ${other.name}
-            </div>
+        (result.data || []).forEach(chat => {
+            const other = String(chat.buyerId?._id) === String(myId) ? chat.sellerId : chat.buyerId;
+            const div = document.createElement('div');
+            div.className = 'chat-list-item';
+            div.innerHTML = `
+                <strong>${chat.itemId?.title || 'Item'}</strong>
+                <br>
+                ${other?.name || ''}
             `;
-            }).join('');
+            div.addEventListener('click', () => openExistingChat(chat._id));
+            container.appendChild(div);
+        });
 
         modal.style.display = 'block';
 
@@ -1468,7 +1458,7 @@ async function syncWishlistHearts() {
                 icon.style.opacity = isSaved ? '1' : '0.35';
             }
         });
-} catch {
+    } catch {
         // ignore
     }
 }

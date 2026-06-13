@@ -11,9 +11,9 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/college_marketplace';
-const JWT_SECRET = process.env.JWT_SECRET || 'kongu_marketplace_secret_2026';
-const ADMIN_KEY = process.env.ADMIN_KEY || 'admin_kongu_2026'; // set in .env for production
+const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_KEY = process.env.ADMIN_KEY ;
 
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
