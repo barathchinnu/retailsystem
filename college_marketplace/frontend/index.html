@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -75,7 +75,15 @@
                     </div>
                 </div>
 
-                <ul class="nav-links">
+                <!-- Mobile controls -->
+                <button class="mobile-search-btn" id="mobileSearchBtn" aria-label="Search">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button class="hamburger" id="hamburgerBtn" aria-label="Menu" aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+
+                <ul class="nav-links" id="navLinks">
                     <li><a href="#browse">Browse</a></li>
                     <li><a href="#sell" class="btn btn-action"><i class="fas fa-plus"></i> Post Free Ad</a></li>
 
@@ -438,7 +446,84 @@
     </div>
     <script src="intro-animation.js"></script>
     <script src="script.js"></script>
+
+    <!-- Mobile search overlay -->
+    <div class="mobile-search-overlay" id="mobileSearchOverlay">
+        <div class="nav-search-bar" style="flex:1;">
+            <div class="location-select">
+                <i class="fas fa-map-marker-alt" style="color:#6366f1;"></i>
+                <select id="mobileNavLocation">
+                    <option value="">All</option>
+                    <option value="hostels">Hostels</option>
+                    <option value="academic">Academic</option>
+                </select>
+            </div>
+            <div class="search-input">
+                <i class="fas fa-search"></i>
+                <input type="text" id="mobileNavSearchInput" placeholder="Search for anything...">
+            </div>
+        </div>
+        <button class="mobile-search-close" id="mobileSearchClose" aria-label="Close search">&#x2715;</button>
+    </div>
+
+    <script>
+    // Hamburger toggle
+    (function(){
+        var btn  = document.getElementById('hamburgerBtn');
+        var menu = document.getElementById('navLinks');
+        if (!btn || !menu) return;
+        btn.addEventListener('click', function(){
+            var open = menu.classList.toggle('open');
+            btn.classList.toggle('open', open);
+            btn.setAttribute('aria-expanded', open);
+        });
+        menu.querySelectorAll('a').forEach(function(a){
+            a.addEventListener('click', function(){
+                menu.classList.remove('open');
+                btn.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+        document.addEventListener('click', function(e){
+            if (!menu.contains(e.target) && !btn.contains(e.target)){
+                menu.classList.remove('open');
+                btn.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    })();
+
+    // Mobile search overlay
+    (function(){
+        var openBtn  = document.getElementById('mobileSearchBtn');
+        var overlay  = document.getElementById('mobileSearchOverlay');
+        var closeBtn = document.getElementById('mobileSearchClose');
+        var mInput   = document.getElementById('mobileNavSearchInput');
+        var mainInput= document.getElementById('navSearchInput');
+        if (!openBtn || !overlay || !closeBtn) return;
+        openBtn.addEventListener('click', function(){
+            overlay.classList.add('open');
+            setTimeout(function(){ if(mInput) mInput.focus(); }, 100);
+        });
+        closeBtn.addEventListener('click', function(){
+            overlay.classList.remove('open');
+        });
+        if (mInput && mainInput){
+            mInput.addEventListener('input', function(){
+                mainInput.value = mInput.value;
+                mainInput.dispatchEvent(new Event('input', {bubbles:true}));
+            });
+        }
+        var mLoc = document.getElementById('mobileNavLocation');
+        var dLoc = document.getElementById('navLocation');
+        if (mLoc && dLoc){
+            mLoc.addEventListener('change', function(){
+                dLoc.value = mLoc.value;
+                dLoc.dispatchEvent(new Event('change', {bubbles:true}));
+            });
+        }
+    })();
+    </script>
 </body>
 
 </html>
-
