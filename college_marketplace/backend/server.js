@@ -48,11 +48,10 @@ userSchema.virtual('rating').get(function () {
 });
 
 // Auto-assign admin status based on the specific email
-userSchema.pre('save', function (next) {
+userSchema.pre('save', async function () {
     if (this.email) {
         this.isAdmin = (this.email.toLowerCase() === 'barathm.24cse@kongu.edu');
     }
-    next();
 });
 
 const User = mongoose.model('User', userSchema);
