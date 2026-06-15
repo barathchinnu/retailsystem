@@ -798,3 +798,46 @@ section h2 {
 @media (max-width: 480px) {
   .hero h1 { font-size: 1.6rem !important; }
 }
+
+
+/* ── ADMIN DASHBOARD: protect inline button styles from overrides ── */
+.admin-wrapper .btn {
+  cursor: pointer !important;
+  font-family: var(--cs-font-body) !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
+  border: none !important;
+  transition: opacity 0.15s, filter 0.15s !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  box-shadow: none !important;
+  font-size: 0.9rem !important;
+  letter-spacing: 0 !important;
+}
+.admin-wrapper .btn:hover { filter: brightness(0.92); }
+.admin-wrapper .btn:active { filter: brightness(0.85); transform: scale(0.98); }
+
+.admin-wrapper .btn-primary {
+  background: #6366f1 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.admin-wrapper .btn-danger {
+  background: #ef4444 !important;
+  color: #fff !important;
+}
+.admin-wrapper .btn-ghost {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+/* Make sure toggle button in users table is always clickable */
+.admin-wrapper table .btn {
+  padding: 7px 12px !important;
+  font-size: 0.82rem !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}

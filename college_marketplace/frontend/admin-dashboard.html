@@ -302,9 +302,15 @@
                 <td>${u.name}</td>
                 <td>${u.email}</td>
                 <td>${u.department || ''}</td>
-                <td>${u.isVerified ? '✅ Verified' : '❌ Not verified'}</td>
+                <td id="verifyStatus_${u._id}">${u.isVerified ? '✅ Verified' : '❌ Not verified'}</td>
                 <td>
-                  <button class="btn btn-primary" style="padding:8px 12px" onclick="window.__toggleVerify('${u._id}')">Toggle</button>
+                  <button
+                    class="btn btn-primary"
+                    id="toggleBtn_${u._id}"
+                    style="padding:8px 12px;cursor:pointer;"
+                    onclick="window.__toggleVerify('${u._id}', this)">
+                    ${u.isVerified ? 'Unverify' : 'Verify'}
+                  </button>
                 </td>
               </tr>
             `).join('')}
@@ -351,10 +357,24 @@
       `;
     }
 
-    window.__toggleVerify = async function(userId){
-      const { result } = await api(`/api/admin/users/${userId}/verify`, 'PATCH');
-      if(!result?.success){ alert(result?.error || 'Failed to toggle'); return; }
-      await loadAll();
+    window.__toggleVerify = async function(userId, btn){
+      if(!btn) btn = document.getElementById('toggleBtn_' + userId);
+      const originalText = btn ? btn.textContent.trim() : 'Toggle';
+      if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; btn.style.opacity = '0.6'; }
+      try {
+        const { result } = await api(`/api/admin/users/${userId}/verify`, 'PATCH');
+        if(!result?.success){
+          alert(result?.error || 'Failed to toggle');
+          if(btn){ btn.disabled = false; btn.textContent = originalText; btn.style.opacity = '1'; }
+          return;
+        }
+        // Refresh only the users section for a snappier feel
+        const usersRes = await api('/api/admin/users');
+        if(usersRes.result?.success) renderUsers(usersRes.result.data);
+      } catch(e) {
+        alert('Error: ' + e.message);
+        if(btn){ btn.disabled = false; btn.textContent = originalText; btn.style.opacity = '1'; }
+      }
     }
 
     $('adminLoginBtn').addEventListener('click', async ()=>{
