@@ -38,6 +38,8 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     // Admin
     isAdmin: { type: Boolean, default: false },
+    // Whether account was created via Google (no user-set password)
+    googleAuth: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -207,8 +209,16 @@ app.post('/api/auth/login', async (req, res) => {
         const user = await User.findOne({ email: email.toLowerCase() });
 
         if (!user) return res.status(400).json({ success: false, error: 'No account found with this email.' });
-        if (!await bcrypt.compare(password, user.password))
+
+        // Detect accounts created via Google (they have a random bcrypt password the user never set)
+        // A real user-set password will always match; a Google-auto-generated one won't.
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (!passwordMatch) {
+            if (user.googleAuth) {
+                return res.status(400).json({ success: false, error: 'This account was created with Google Sign-In. Please click "Login with Google" instead.' });
+            }
             return res.status(400).json({ success: false, error: 'Incorrect password.' });
+        }
 
         const token = jwt.sign(
             { id: user._id, name: user.name, email: user.email, department: user.department },
@@ -262,7 +272,8 @@ app.post('/api/auth/google', async (req, res) => {
                 email,
                 password: await bcrypt.hash(randomPassword, 10),
                 department: 'Not Specified', // Default for Google Auth
-                profileImage: payload.picture || ''
+                profileImage: payload.picture || '',
+                googleAuth: true
             });
             await user.save();
         } else {
