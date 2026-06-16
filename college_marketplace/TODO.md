@@ -1,8 +1,7 @@
-# TODO — Reduce chat delay (Socket.IO responsiveness)
+# College Marketplace — TODO (Chat Fix)
 
-- [ ] Update `frontend/script.js` chat send flow to stop calling `loadChatMessages()` after every message send.
-- [ ] Use Socket.IO (`window.__csSocketChat`) to send messages instead of HTTP POST (text + image).
-- [ ] Ensure pending messages are replaced/confirmed when `newMessage` arrives.
-- [ ] Keep existing phone reveal / report / rating flows unchanged.
-- [ ] Validate no duplicate message rendering and no console errors.
+- [ ] Inspect current chat flow (REST open/load + Socket.IO send/receive)
+- [ ] Identify mismatch between Socket.IO payloads and frontend rendering
+- [ ] Patch `frontend/socketio-chat.js` to handle server `messageError` and ensure message timestamps/IDs render correctly
+- [ ] Run backend + quick manual test plan (open chat, send text/image, verify real-time update)
 

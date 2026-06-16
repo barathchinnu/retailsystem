@@ -40,9 +40,8 @@
     const token = getToken();
     if (!token) return null;
 
-    // Connect to same origin as frontend (works with Render/custom domains)
-    // If you want to force BASE_URL socket host, replace with `${BASE_URL}`.
-    socket = io('/', {
+    // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
+    socket = io(BASE_URL, {
       auth: { token },
       transports: ['websocket'],
     });

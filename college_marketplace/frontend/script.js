@@ -1110,8 +1110,13 @@ async function sendMessage() {
             showToast('⚠️ Chat connection not ready.');
             return;
         }
+
+        // ensure we have joined the room (prevents “message not going”)
+        window.__csSocketChat?.joinChat?.(activeChatId);
+
         s.emit('sendMessage', { chatId: activeChatId, text });
-    } catch {
+    } catch (e) {
+        console.error('sendMessage socket error', e);
         showToast('❌ Message send failed.');
     }
 }
