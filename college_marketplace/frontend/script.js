@@ -1078,10 +1078,12 @@ async function loadChatMessages(chatId, forceReset = false) {
 
 async function sendMessage() {
     if (!activeChatId) return;
+
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
     if (!text) return;
 
+    // Optimistic UI (no full reload)
     const msgs = document.getElementById('chatMessages');
     if (msgs) {
         const noMsgsEl = msgs.querySelector('.no-msgs');
@@ -1101,23 +1103,16 @@ async function sendMessage() {
     }
 
     input.value = '';
+
     try {
-        const res = await fetch(`${CHAT_URL}/${activeChatId}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-            body: JSON.stringify({ text })
-        });
-        const result = await res.json();
-        if (result.success) { 
-            await loadChatMessages(activeChatId, false); 
-        } else { 
-            showToast('❌ ' + result.error); 
-            // Refresh full chat to remove any broken/temp messages
-            await loadChatMessages(activeChatId, true);
+        const s = window.__csSocketChat?.ensureSocket?.();
+        if (!s) {
+            showToast('⚠️ Chat connection not ready.');
+            return;
         }
-    } catch { 
-        showToast('❌ Message failed to send.'); 
-        await loadChatMessages(activeChatId, true);
+        s.emit('sendMessage', { chatId: activeChatId, text });
+    } catch {
+        showToast('❌ Message send failed.');
     }
 }
 
