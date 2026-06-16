@@ -619,7 +619,16 @@ const msg = {
         chat.messages.push(msg);
         await chat.save();
 
-        res.json({ success: true, data: chat.messages[chat.messages.length - 1] });
+        const latest = msg._id ? msg : chat.messages[chat.messages.length - 1];
+
+        if (typeof io !== 'undefined') {
+            io.to(`chat:${req.params.chatId}`).emit('newMessage', {
+                chatId: req.params.chatId,
+                message: latest
+            });
+        }
+
+        res.json({ success: true, data: latest });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

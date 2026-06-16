@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════
 
 const BASE_URL = 'https://retailsystem-1.onrender.com';   // ← change to your V2 deploy URL
+window.BASE_URL = BASE_URL;
 const API_URL = `${BASE_URL}/api/items`;
 const AUTH_URL = `${BASE_URL}/api/auth`;
 const CHAT_URL = `${BASE_URL}/api/chats`;
@@ -208,6 +209,7 @@ logoutBtn.addEventListener('click', e => {
     e.preventDefault();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    window.__csSocketChat?.disconnectSocket?.();
     updateAuthUI();
     showToast('👋 Logged out successfully!');
 });
@@ -950,8 +952,8 @@ function ensureChatPanel() {
 
     document.getElementById('closeChatBtn').addEventListener('click', () => {
         panel.classList.remove('open');
-        activeChatId = null;
         stopChatPolling();
+        activeChatId = null;
     });
     document.getElementById('chatSendBtn').addEventListener('click', sendMessage);
     document.getElementById('chatInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
@@ -985,6 +987,9 @@ async function openChat(itemId) {
         activeChatId = result.data._id;
         await loadChatMessages(activeChatId, true);
         document.getElementById('chatPanel').classList.add('open');
+        
+        // Socket.IO: join room for real-time updates
+        window.__csSocketChat?.joinChat?.(activeChatId);
     } catch { showToast('❌ Could not open chat. Check your connection.'); }
 }
 

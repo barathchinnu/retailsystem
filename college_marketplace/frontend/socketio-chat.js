@@ -19,9 +19,9 @@
   function safeEscape(str) {
     return String(str)
       .replace(/&/g, '&amp;')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"');
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function formatTime(iso) {
@@ -44,7 +44,10 @@
     if (!token) return null;
 
     // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
-    socket = io(BASE_URL, {
+    const activeBaseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
+
+    // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
+    socket = io(activeBaseUrl, {
       auth: { token },
       // Let Socket.IO choose transports; forcing websocket can fail depending on hosting/network.
     });
@@ -89,11 +92,10 @@
           <span class="msg-time">${formatTime(message.createdAt)}</span>
         `;
 
-        // Remove any pending temp message (optional). Current script.js uses 'pending' class.
+        // Remove any pending temp message to avoid duplicates
         const pending = chatMessages.querySelector('.chat-msg.mine.pending');
         if (pending) {
-          pending.classList.remove('pending');
-          // keep it; the full loadChatMessages will eventually reconcile.
+          pending.remove();
         }
 
         // Avoid duplicates when user also loads via REST
@@ -136,11 +138,22 @@
     if (String(activeChatId) === String(chatId)) activeChatId = null;
   }
 
+  function disconnectSocket() {
+    if (socket) {
+      try {
+        socket.disconnect();
+      } catch {}
+      socket = null;
+    }
+    activeChatId = null;
+  }
+
   // Expose to existing script.js
   window.__csSocketChat = {
     joinChat,
     leaveChat,
-    ensureSocket
+    ensureSocket,
+    disconnectSocket
   };
 
   // When token changes (login/logout), reconnect auth.
