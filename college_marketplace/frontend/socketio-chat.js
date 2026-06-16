@@ -60,9 +60,13 @@
 
     socket.on('newMessage', (payload) => {
       try {
-        if (!payload || String(payload.chatId) !== String(activeChatId)) return;
+        if (!payload) return;
+        // Be tolerant: server may send chatId as ObjectId/string
+        if (activeChatId && String(payload.chatId) !== String(activeChatId)) return;
+
         const message = payload.message;
         if (!message) return;
+
 
         const chatMessages = getChatMessagesEl();
         if (!chatMessages) return;
