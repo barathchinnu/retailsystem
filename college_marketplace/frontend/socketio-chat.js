@@ -112,9 +112,10 @@
 
         // Remove any pending temp message to avoid duplicates
         const pending = chatMessages.querySelector('.chat-msg.mine.pending');
-        if (pending) {
-          pending.remove();
-        }
+        if (pending) pending.remove();
+
+        // If it's our own message, the HTTP POST optimistic UI already handled it — skip
+        if (isMine) { chatMessages.scrollTop = chatMessages.scrollHeight; return; }
 
         // Avoid duplicates when user also loads via REST
         const existing = message._id ? document.getElementById(message._id) : null;

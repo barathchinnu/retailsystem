@@ -1088,41 +1088,56 @@ async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
 
-    // Optimistic UI (no full reload)
+    // Optimistic UI -- show message immediately before network call
     const msgs = document.getElementById('chatMessages');
+    let tempDiv = null;
     if (msgs) {
         const noMsgsEl = msgs.querySelector('.no-msgs');
         if (noMsgsEl) noMsgsEl.remove();
 
-        const tempId = 'temp-' + Date.now();
-        const div = document.createElement('div');
-        div.id = tempId;
-        div.className = 'chat-msg mine pending';
-        div.innerHTML = `
-          <span class="msg-name">You</span>
-          <span class="msg-text">${escapeHtml(text)}</span>
-          <span class="msg-time">${formatTime(new Date())}</span>
-        `;
-        msgs.appendChild(div);
+        tempDiv = document.createElement('div');
+        tempDiv.id = 'temp-' + Date.now();
+        tempDiv.className = 'chat-msg mine pending';
+        tempDiv.innerHTML = '<span class="msg-name">You</span>' +
+          '<span class="msg-text">' + escapeHtml(text) + '</span>' +
+          '<span class="msg-time">' + formatTime(new Date()) + '</span>';
+        msgs.appendChild(tempDiv);
         msgs.scrollTop = msgs.scrollHeight;
     }
 
     input.value = '';
 
     try {
-        const s = window.__csSocketChat?.ensureSocket?.();
-        if (!s) {
-            showToast('⚠️ Chat connection not ready.');
+        // Send via HTTP POST -- reliable delivery regardless of socket state.
+        // Backend automatically broadcasts via socket.io to the other user.
+        const res = await fetch(CHAT_URL + '/' + activeChatId + '/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + getToken()
+            },
+            body: JSON.stringify({ text })
+        });
+        const result = await res.json();
+
+        if (!result.success) {
+            if (tempDiv) tempDiv.remove();
+            showToast('Message send failed.');
             return;
         }
 
-        // ensure we have joined the room (prevents “message not going”)
-        window.__csSocketChat?.joinChat?.(activeChatId);
+        // Confirm the pending div with the real server _id
+        if (tempDiv && result.data && result.data._id) {
+            tempDiv.id = result.data._id;
+            tempDiv.classList.remove('pending');
+            const timeEl = tempDiv.querySelector('.msg-time');
+            if (timeEl) timeEl.textContent = formatTime(result.data.createdAt);
+        }
 
-        s.emit('sendMessage', { chatId: activeChatId, text });
     } catch (e) {
-        console.error('sendMessage socket error', e);
-        showToast('❌ Message send failed.');
+        console.error('sendMessage error', e);
+        if (tempDiv) tempDiv.remove();
+        showToast('Message send failed. Check connection.');
     }
 }
 
