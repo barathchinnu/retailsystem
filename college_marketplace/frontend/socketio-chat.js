@@ -2,8 +2,11 @@
 // Assumes socket.io client script is loaded globally as `io`.
 
 (function initSocketChat() {
-  const BASE_URL = 'https://retailsystem-1.onrender.com'; // must match script.js BASE_URL
+  // Use the same backend base URL as script.js (it hardcodes BASE_URL)
+  // but fall back safely if script.js didn't load (or if you are running locally).
+  const BASE_URL = window.BASE_URL || 'https://retailsystem-1.onrender.com';
   const CHAT_URL = `${BASE_URL}/api/chats`;
+
 
   let socket = null;
   let activeChatId = null;
@@ -43,8 +46,9 @@
     // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
     socket = io(BASE_URL, {
       auth: { token },
-      transports: ['websocket'],
+      // Let Socket.IO choose transports; forcing websocket can fail depending on hosting/network.
     });
+
 
     socket.on('connect', () => {
       // connected
