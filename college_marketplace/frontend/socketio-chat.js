@@ -61,11 +61,13 @@
     socket.on('newMessage', (payload) => {
       try {
         if (!payload) return;
-        // Be tolerant: server may send chatId as ObjectId/string
-        if (activeChatId && String(payload.chatId) !== String(activeChatId)) return;
 
         const message = payload.message;
         if (!message) return;
+
+        // If chatId is provided by server, filter; otherwise rely only on open chat.
+        if (payload.chatId && activeChatId && String(payload.chatId) !== String(activeChatId)) return;
+
 
 
         const chatMessages = getChatMessagesEl();
@@ -99,6 +101,19 @@
         if (!existing) chatMessages.appendChild(div);
 
         chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Notification for incoming messages when this chat is NOT currently open
+        try {
+          if (typeof window.addNotification === 'function') {
+            const isOpenChat = activeChatId && payload.chatId && String(payload.chatId) === String(activeChatId);
+            if (!isOpenChat && !isMine) {
+              const chatTitle = document.getElementById('chatItemTitle')?.textContent || 'New message';
+              const senderName = message.senderName || 'User';
+              window.addNotification('msg', `Message from ${senderName}`, message.text ? String(message.text).slice(0, 80) : '📷 Image received');
+            }
+          }
+        } catch {}
+
       } catch {
         // ignore
       }
