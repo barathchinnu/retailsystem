@@ -99,25 +99,24 @@
             isMine = String(message.senderId).toLowerCase() === String(myId).toLowerCase();
         }
 
+        // ── OWN message: HTTP POST optimistic UI already handled display. ──
+        // Socket echo of our own message must be ignored completely — do NOT
+        // touch the pending div or DOM at all, otherwise the confirmed div
+        // disappears because pending.remove() runs before tempDiv gets confirmed.
+        if (isMine) return;
+
+        // ── INCOMING message from the OTHER user ──────────────────────────────
         const div = document.createElement('div');
-        div.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
+        div.className = 'chat-msg theirs';
         div.id = message._id || ('msg-' + Date.now());
 
-        div.innerHTML = `
-          <span class="msg-name">${isMine ? 'You' : message.senderName}</span>
-          ${message.image ? `<span class="msg-image"><img src="${message.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
-          ${message.text ? `<span class="msg-text">${safeEscape(message.text)}</span>` : ''}
-          <span class="msg-time">${formatTime(message.createdAt)}</span>
-        `;
+        div.innerHTML =
+          '<span class="msg-name">' + (message.senderName || 'User') + '</span>' +
+          (message.image ? '<span class="msg-image"><img src="' + message.image + '" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>' : '') +
+          (message.text ? '<span class="msg-text">' + safeEscape(message.text) + '</span>' : '') +
+          '<span class="msg-time">' + formatTime(message.createdAt) + '</span>';
 
-        // Remove any pending temp message to avoid duplicates
-        const pending = chatMessages.querySelector('.chat-msg.mine.pending');
-        if (pending) pending.remove();
-
-        // If it's our own message, the HTTP POST optimistic UI already handled it — skip
-        if (isMine) { chatMessages.scrollTop = chatMessages.scrollHeight; return; }
-
-        // Avoid duplicates when user also loads via REST
+        // Avoid duplicates when polling also loads via REST
         const existing = message._id ? document.getElementById(message._id) : null;
         if (!existing) chatMessages.appendChild(div);
 
