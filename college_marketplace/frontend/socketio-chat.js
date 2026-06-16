@@ -117,7 +117,7 @@
         }
 
         // Avoid duplicates when user also loads via REST
-        const existing = message._id ? chatMessages.querySelector('#' + message._id) : null;
+        const existing = message._id ? document.getElementById(message._id) : null;
         if (!existing) chatMessages.appendChild(div);
 
         chatMessages.scrollTop = chatMessages.scrollHeight;
