@@ -864,8 +864,107 @@ app.get('/api/admin/users', adminMiddleware, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-//  START
+//  START (HTTP + Socket.IO)
 // ═══════════════════════════════════════════════════
 
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+
+// Socket auth middleware (JWT)
+io.use(async (socket, next) => {
+    try {
+        const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+        if (!token) return next(new Error('Unauthorized'));
+
+        const decoded = jwt.verify(token, JWT_SECRET);
+        socket.user = decoded;
+        return next();
+    } catch (e) {
+        return next(new Error('Unauthorized'));
+    }
+});
+
+function assertChatParticipant(chat, uid) {
+    const isBuyer = chat.buyerId?.toString() === uid;
+    const isSeller = chat.sellerId?.toString() === uid;
+    return isBuyer || isSeller;
+}
+
+io.on('connection', (socket) => {
+    const uid = socket.user?.id?.toString?.() || socket.user?.id;
+
+    socket.on('joinChat', async ({ chatId }) => {
+        try {
+            if (!chatId) return;
+            const chat = await Chat.findById(chatId).select('buyerId sellerId itemId phoneRevealed messages');
+            if (!chat) return;
+            if (!assertChatParticipant(chat, uid)) return;
+
+
+            socket.join(`chat:${chatId}`);
+
+            // Send initial state to that client (optional)
+            socket.emit('chatJoined', { chatId, phoneRevealed: !!chat.phoneRevealed });
+        } catch {
+            // ignore
+        }
+    });
+
+    socket.on('leaveChat', ({ chatId }) => {
+        if (!chatId) return;
+        socket.leave(`chat:${chatId}`);
+    });
+
+    socket.on('sendMessage', async ({ chatId, text, image }) => {
+        try {
+            if (!chatId) return;
+
+            const chat = await Chat.findById(chatId);
+            if (!chat) return;
+
+            if (!assertChatParticipant(chat, uid)) return;
+
+            if ((!text || String(text).trim() === '') && !image) {
+                socket.emit('messageError', { chatId, error: 'Message must contain text or an image.' });
+                return;
+            }
+
+            if (image && String(image).length > 2_500_000) {
+                socket.emit('messageError', { chatId, error: 'Image is too large. Please upload a smaller image.' });
+                return;
+            }
+
+            const msg = {
+                senderId: uid,
+                senderName: socket.user?.name,
+                text: text ? String(text) : undefined,
+                image: image ? String(image) : undefined,
+                createdAt: new Date()
+            };
+
+            chat.messages.push(msg);
+            await chat.save();
+
+            const latest = chat.messages[chat.messages.length - 1];
+
+            io.to(`chat:${chatId}`).emit('newMessage', {
+                chatId,
+                message: latest
+            });
+        } catch (e) {
+            socket.emit('messageError', { chatId, error: e?.message || 'Failed to send message' });
+        }
+    });
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 CampusSwap V2 running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 CampusSwap V2 running on port ${PORT}`));

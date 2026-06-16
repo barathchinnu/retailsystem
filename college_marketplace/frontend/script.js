@@ -873,44 +873,18 @@ function stopChatPolling() {
         clearInterval(chatPollTimer);
         chatPollTimer = null;
     }
+    // Socket.IO: leave current room
+    try {
+        if (activeChatId) window.__csSocketChat?.leaveChat?.(activeChatId);
+    } catch {}
 }
 
 function startChatPolling() {
+    // Socket.IO handles real-time updates now.
+    // Keep this as a no-op to avoid touching too much legacy code.
     stopChatPolling();
-
-    const panel = document.getElementById('chatPanel');
-    if (!panel) return;
-
-    chatLastSeenCount = document.getElementById('chatMessages')?.querySelectorAll('.chat-msg')?.length ?? 0;
-
-    chatPollTimer = setInterval(async () => {
-        if (!activeChatId) return;
-        if (!panel.classList.contains('open')) return;
-
-        try {
-            const res = await fetch(`${CHAT_URL}/${activeChatId}`, {
-                headers: { 'Authorization': `Bearer ${getToken()}` }
-            });
-            const result = await res.json();
-            if (!result.success) return;
-
-            const newCount = result.data?.messages?.length ?? 0;
-            if (newCount !== chatLastSeenCount) {
-                if (newCount > chatLastSeenCount) {
-                    const latestMsg = result.data.messages[newCount - 1];
-                    const me = getUser();
-                    const myId = me?.id || me?._id;
-                    if (String(latestMsg.senderId) !== String(myId)) {
-                        addNotification('msg', 'New Message', `Message from ${latestMsg.senderName}`);
-                    }
-                }
-                await loadChatMessages(activeChatId, false);
-            }
-        } catch {
-            // ignore poll errors
-        }
-    }, 800);
 }
+
 
 
 async function openExistingChat(chatId) {
@@ -928,8 +902,9 @@ async function openExistingChat(chatId) {
         .getElementById('chatPanel')
         ?.classList.add('open');
 
+    // Socket.IO: join room for real-time updates
+    window.__csSocketChat?.joinChat?.(chatId);
     startChatPolling();
-
 
     document
         .getElementById('chatListModal')
