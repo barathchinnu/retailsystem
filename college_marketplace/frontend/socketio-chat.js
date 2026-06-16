@@ -43,22 +43,40 @@
     const token = getToken();
     if (!token) return null;
 
-    // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
+    const ioClient = window.io || (typeof io !== 'undefined' ? io : null);
+    if (!ioClient) {
+      const activeBaseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
+      if (!window.__loadingSocketIoScript) {
+        window.__loadingSocketIoScript = true;
+        console.warn('Socket.io client script not found. Loading dynamically from backend...');
+        const script = document.createElement('script');
+        script.src = `${activeBaseUrl}/socket.io/socket.io.js`;
+        script.onload = () => {
+          console.log('Socket.io client script loaded dynamically.');
+          window.__loadingSocketIoScript = false;
+          if (activeChatId) joinChat(activeChatId);
+        };
+        script.onerror = () => {
+          console.error('Failed to load Socket.io client script.');
+          window.__loadingSocketIoScript = false;
+        };
+        document.head.appendChild(script);
+      }
+      return null;
+    }
+
     const activeBaseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
 
-    // Force socket connection to backend host (avoids accidentally using the frontend/Vercel host)
-    socket = io(activeBaseUrl, {
+    socket = ioClient(activeBaseUrl, {
       auth: { token },
-      // Let Socket.IO choose transports; forcing websocket can fail depending on hosting/network.
     });
 
-
     socket.on('connect', () => {
-      // connected
+      console.log('Socket.io connected successfully:', socket.id);
     });
 
     socket.on('disconnect', () => {
-      // will reconnect automatically
+      console.warn('Socket.io disconnected.');
     });
 
     socket.on('newMessage', (payload) => {
@@ -68,23 +86,23 @@
         const message = payload.message;
         if (!message) return;
 
-        // If chatId is provided by server, filter; otherwise rely only on open chat.
         if (payload.chatId && activeChatId && String(payload.chatId) !== String(activeChatId)) return;
-
-
 
         const chatMessages = getChatMessagesEl();
         if (!chatMessages) return;
 
         const me = getUser();
-        const myId = me?.id || me?._id;
-        const isMine = String(message.senderId) === String(myId);
+        const myId = me ? (me.id || me._id) : null;
+        
+        let isMine = false;
+        if (myId && message.senderId) {
+            isMine = String(message.senderId).toLowerCase() === String(myId).toLowerCase();
+        }
 
         const div = document.createElement('div');
         div.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
         div.id = message._id || ('msg-' + Date.now());
 
-        // NOTE: message from server contains {senderId, senderName, text, image, createdAt}
         div.innerHTML = `
           <span class="msg-name">${isMine ? 'You' : message.senderName}</span>
           ${message.image ? `<span class="msg-image"><img src="${message.image}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
@@ -109,15 +127,14 @@
           if (typeof window.addNotification === 'function') {
             const isOpenChat = activeChatId && payload.chatId && String(payload.chatId) === String(activeChatId);
             if (!isOpenChat && !isMine) {
-              const chatTitle = document.getElementById('chatItemTitle')?.textContent || 'New message';
               const senderName = message.senderName || 'User';
               window.addNotification('msg', `Message from ${senderName}`, message.text ? String(message.text).slice(0, 80) : '📷 Image received');
             }
           }
         } catch {}
 
-      } catch {
-        // ignore
+      } catch (err) {
+        console.error('Socket message append error:', err);
       }
     });
 
