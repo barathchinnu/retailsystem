@@ -555,15 +555,27 @@ section h2 {
 
 /* ── 11. TOAST ─────────────────────────────────────────────────── */
 #cs-toast {
-  background: var(--cs-text-primary) !important;
+  position: fixed !important;
+  top: 5rem !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(-160%) !important;
+  background: #1e293b !important;
   color: #fff !important;
   border-radius: 999px !important;
   font-family: var(--cs-font-body) !important;
   font-size: 0.875rem !important;
   font-weight: 500 !important;
   padding: 0.7rem 1.5rem !important;
-  box-shadow: var(--cs-shadow-md) !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35) !important;
   border: none !important;
+  z-index: 999999 !important;
+  white-space: nowrap !important;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  pointer-events: none !important;
+}
+#cs-toast.show {
+  transform: translateX(-50%) translateY(0) !important;
 }
 
 /* ── 12. NOTIFICATIONS ─────────────────────────────────────────── */
