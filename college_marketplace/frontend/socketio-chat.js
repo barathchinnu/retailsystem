@@ -1,187 +1,170 @@
-// Socket.IO chat wiring for CampusSwap
-// Assumes socket.io client script is loaded globally as `io`.
+// ═══════════════════════════════════════════════════
+//   CampusSwap V2 — socketio-chat.js (Companion Mode)
+// ═══════════════════════════════════════════════════
 
-(function initSocketChat() {
-  // Use the same backend base URL as script.js (it hardcodes BASE_URL)
-  // but fall back safely if script.js didn't load (or if you are running locally).
-  const BASE_URL = window.BASE_URL || 'https://retailsystem-1.onrender.com';
-  const CHAT_URL = `${BASE_URL}/api/chats`;
+(function () {
+    let socket = null;
+    let activeChatId = null;
 
+    const getToken = () => localStorage.getItem('token');
+    const getUser = () => {
+        const u = localStorage.getItem('user');
+        return u ? JSON.parse(u) : null;
+    };
 
-  let socket = null;
-  let activeChatId = null;
+    const cleanIdString = (id) => {
+        if (!id) return '';
+        return String(id).replace('chat:', '').trim();
+    };
 
-  // DOM references (exist after script.js ensures chat panel)
-  function getChatMessagesEl() {
-    return document.getElementById('chatMessages');
-  }
+    // ─── Socket Connection Gateways ────────────────────────────────────────────
+    function initSocket() {
+        const token = getToken();
+        const baseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
 
-  function safeEscape(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+        if (!token) return null;
+        if (socket && socket.connected) return socket;
 
-  function formatTime(iso) {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function getToken() {
-    return localStorage.getItem('token');
-  }
-
-  function getUser() {
-    const u = localStorage.getItem('user');
-    return u ? JSON.parse(u) : null;
-  }
-
-  function ensureSocket() {
-    if (socket) return socket;
-    const token = getToken();
-    if (!token) return null;
-
-    const ioClient = window.io || (typeof io !== 'undefined' ? io : null);
-    if (!ioClient) {
-      const activeBaseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
-      if (!window.__loadingSocketIoScript) {
-        window.__loadingSocketIoScript = true;
-        console.warn('Socket.io client script not found. Loading dynamically from backend...');
-        const script = document.createElement('script');
-        script.src = `${activeBaseUrl}/socket.io/socket.io.js`;
-        script.onload = () => {
-          console.log('Socket.io client script loaded dynamically.');
-          window.__loadingSocketIoScript = false;
-          if (activeChatId) joinChat(activeChatId);
-        };
-        script.onerror = () => {
-          console.error('Failed to load Socket.io client script.');
-          window.__loadingSocketIoScript = false;
-        };
-        document.head.appendChild(script);
-      }
-      return null;
-    }
-
-    const activeBaseUrl = window.BASE_URL || 'https://retailsystem-1.onrender.com';
-
-    socket = ioClient(activeBaseUrl, {
-      auth: { token },
-    });
-
-    socket.on('connect', () => {
-      console.log('Socket.io connected successfully:', socket.id);
-    });
-
-    socket.on('disconnect', () => {
-      console.warn('Socket.io disconnected.');
-    });
-
-    socket.on('newMessage', (payload) => {
-      try {
-        if (!payload) return;
-
-        const message = payload.message;
-        if (!message) return;
-
-        if (payload.chatId && activeChatId && String(payload.chatId) !== String(activeChatId)) return;
-
-        const chatMessages = getChatMessagesEl();
-        if (!chatMessages) return;
-
-        const me = getUser();
-        const myId = me ? (me.id || me._id) : null;
+        console.log('🔄 Initializing Socket.io engine via script.js trigger...');
         
-        let isMine = false;
-        if (myId && message.senderId) {
-            isMine = String(message.senderId).toLowerCase() === String(myId).toLowerCase();
+        socket = io(baseUrl, {
+            auth: { token },
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            console.log('⚡ Connected to CampusSwap real-time chat server.');
+            if (activeChatId) {
+                const cleanId = cleanIdString(activeChatId);
+                socket.emit('joinRoom', { chatId: cleanId });
+                socket.emit('join', cleanId);
+                socket.emit('joinRoom', { chatId: `chat:${cleanId}` });
+                socket.emit('join', `chat:${cleanId}`);
+            }
+        });
+
+        // Intercept real-time incoming traffic
+        socket.on('newMessage', (payload) => {
+            console.log('📩 Live message caught by WebSocket stream:', payload);
+            if (!payload || !activeChatId) return;
+
+            // Normalize payload structure down from backend broadcast
+            const messageData = payload.message || payload;
+            const incomingChatId = payload.chatId || messageData.chatId || messageData.chat || payload.chat;
+
+            const normalizedActive = cleanIdString(activeChatId);
+            const normalizedIncoming = cleanIdString(incomingChatId);
+
+            if (normalizedActive === normalizedIncoming && normalizedActive !== '') {
+                // Squelch duplicate handling if the message was already optimistically appended by your own click event
+                if (messageData._id && document.getElementById(messageData._id)) {
+                    console.log('🏁 Message already rendered on UI layout. Skipping append.');
+                    // Still update the count so polling doesn't re-render
+                    if (window.chatLastSeenCount !== undefined) window.chatLastSeenCount++;
+                    return;
+                }
+                
+                const msgsContainer = document.getElementById('chatMessages');
+                if (msgsContainer) {
+                    appendMessageToExistingPanel(messageData);
+                    // Keep chatLastSeenCount in sync with script.js to prevent polling double-render
+                    if (typeof chatLastSeenCount !== 'undefined') chatLastSeenCount++;
+                    console.log('✅ Appended live text directly to your existing UI view.');
+                } else {
+                    // Panel not visible — let polling handle it when user opens chat
+                    console.log('⚠️ Chat panel not open — socket message queued for next poll.');
+                }
+            }
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from chat server.');
+        });
+
+        return socket;
+    }
+// ─── Core Hook Linked From script.js ───────────────────────────────────────
+    async function joinChat(chatId) {
+        console.log(`🚀 Hook captured! Room registration for ID: ${chatId}`);
+        activeChatId = chatId;
+
+        // Ensure we initialize the socket IF it doesn't exist yet
+        if (!socket || !socket.connected) {
+            console.log('⏳ Waiting for socket initialization...');
+            initSocket();
         }
 
-        // ── OWN message: HTTP POST optimistic UI already handled display. ──
-        // Socket echo of our own message must be ignored completely — do NOT
-        // touch the pending div or DOM at all, otherwise the confirmed div
-        // disappears because pending.remove() runs before tempDiv gets confirmed.
-        if (isMine) return;
+        // Now that initSocket has run, socket MUST be defined
+        if (socket) {
+            const cleanId = cleanIdString(chatId);
+            console.log(`📡 Emitting joinRoom for: ${cleanId}`);
+            socket.emit('joinRoom', { chatId: cleanId });
+            socket.emit('join', cleanId);
+        }
+    }
 
-        // ── INCOMING message from the OTHER user ──────────────────────────────
-        const div = document.createElement('div');
-        div.className = 'chat-msg theirs';
-        div.id = message._id || ('msg-' + Date.now());
+    // ─── Dynamic Insertion Into Your Panel (Synchronized with script.js Framework) ───
+    function appendMessageToExistingPanel(messageData) {
+        const msgsContainer = document.getElementById('chatMessages');
 
-        div.innerHTML =
-          '<span class="msg-name">' + (message.senderName || 'User') + '</span>' +
-          (message.image ? '<span class="msg-image"><img src="' + message.image + '" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>' : '') +
-          (message.text ? '<span class="msg-text">' + safeEscape(message.text) + '</span>' : '') +
-          '<span class="msg-time">' + formatTime(message.createdAt) + '</span>';
+        if (!msgsContainer) {
+            console.warn("⚠️ WebSocket caught the message but couldn't locate your #chatMessages container.");
+            return;
+        }
 
-        // Avoid duplicates when polling also loads via REST
-        const existing = message._id ? document.getElementById(message._id) : null;
-        if (!existing) chatMessages.appendChild(div);
+        // Wipe out "No messages yet" text if it's visible on screen
+        const noMsgsEl = msgsContainer.querySelector('.no-msgs');
+        if (noMsgsEl) noMsgsEl.remove();
 
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        const messageText = messageData.text || '';
+        const imageUrl = messageData.image || '';
+        const rawSender = messageData.senderId || messageData.sender;
+        const senderId = (typeof rawSender === 'object' && rawSender !== null) ? rawSender._id : rawSender;
+        const senderName = messageData.senderName || (senderId ? 'User' : 'Other');
 
-        // Notification for incoming messages when this chat is NOT currently open
-        try {
-          if (typeof window.addNotification === 'function') {
-            const isOpenChat = activeChatId && payload.chatId && String(payload.chatId) === String(activeChatId);
-            if (!isOpenChat && !isMine) {
-              const senderName = message.senderName || 'User';
-              window.addNotification('msg', `Message from ${senderName}`, message.text ? String(message.text).slice(0, 80) : '📷 Image received');
+        const currentUser = getUser();
+        const currentUserId = currentUser?._id || currentUser?.id;
+        const isMine = String(senderId) === String(currentUserId);
+
+        // Build the precise DOM layout used by script.js
+        const msgDiv = document.createElement('div');
+        if (messageData._id) msgDiv.id = messageData._id;
+        msgDiv.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
+        
+        const timestamp = messageData.createdAt ? new Date(messageData.createdAt) : new Date();
+        const displayTime = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        msgDiv.innerHTML = `
+            <span class="msg-name">${isMine ? 'You' : escapeHtml(senderName)}</span>
+            ${imageUrl ? `<span class="msg-image"><img src="${imageUrl}" style="max-width:240px;max-height:180px;border-radius:12px;display:block;"/></span>` : ''}
+            ${messageText ? `<span class="msg-text">${escapeHtml(messageText)}</span>` : ''}
+            <span class="msg-time">${displayTime}</span>
+        `;
+        
+        msgsContainer.appendChild(msgDiv);
+        
+        // Auto scroll cleanly down
+        msgsContainer.scrollTop = msgsContainer.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
+    }
+
+    // ─── Export Interface
+    window.__csSocketChat = {
+        joinChat: joinChat,
+        disconnectSocket: () => {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                console.log('👋 Socket cleared successfully.');
             }
-          }
-        } catch {}
-
-      } catch (err) {
-        console.error('Socket message append error:', err);
-      }
-    });
-
-    return socket;
-  }
-
-  function joinChat(chatId) {
-    activeChatId = chatId;
-    const s = ensureSocket();
-    if (!s) return;
-    s.emit('joinChat', { chatId });
-  }
-
-  function leaveChat(chatId) {
-    const s = socket;
-    if (!s || !chatId) return;
-    s.emit('leaveChat', { chatId });
-    if (String(activeChatId) === String(chatId)) activeChatId = null;
-  }
-
-  function disconnectSocket() {
-    if (socket) {
-      try {
-        socket.disconnect();
-      } catch {}
-      socket = null;
-    }
-    activeChatId = null;
-  }
-
-  // Expose to existing script.js
-  window.__csSocketChat = {
-    joinChat,
-    leaveChat,
-    ensureSocket,
-    disconnectSocket
-  };
-
-  // When token changes (login/logout), reconnect auth.
-  // script.js clears localStorage on logout, so this will naturally fail auth.
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'token') {
-      try {
-        if (socket) socket.close();
-      } catch {}
-      socket = null;
-    }
-  });
+        }
+    };
 })();
-

@@ -882,9 +882,24 @@ function stopChatPolling() {
 }
 
 function startChatPolling() {
-    // Socket.IO handles real-time updates now.
-    // Keep this as a no-op to avoid touching too much legacy code.
-    stopChatPolling();
+    stopChatPolling(); // clear any existing timer first
+    if (!activeChatId) return;
+    // Poll every 2.5 seconds as a guaranteed fallback for missed socket events
+    chatPollTimer = setInterval(async () => {
+        if (!activeChatId) { stopChatPolling(); return; }
+        try {
+            const res = await fetch(`${CHAT_URL}/${activeChatId}`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            const result = await res.json();
+            if (!result.success) return;
+            const serverMsgCount = result.data?.messages?.length || 0;
+            if (serverMsgCount > chatLastSeenCount) {
+                // New messages detected — refresh the chat view
+                await loadChatMessages(activeChatId, false);
+            }
+        } catch { /* silent fail */ }
+    }, 2500);
 }
 
 
@@ -990,6 +1005,8 @@ async function openChat(itemId) {
         
         // Socket.IO: join room for real-time updates
         window.__csSocketChat?.joinChat?.(activeChatId);
+        // Also start HTTP polling as guaranteed fallback
+        startChatPolling();
     } catch { showToast('❌ Could not open chat. Check your connection.'); }
 }
 
