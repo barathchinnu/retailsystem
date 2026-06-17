@@ -202,19 +202,19 @@
         object-fit: cover;
         border: 2px solid #6366f1;
     }
-    .nav-avatar-trigger #navProfileIcon {
-        font-size: 1.85rem;
-        color: #6366f1;
-    }
-    .user-greeting-text {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #374151;
-        max-width: 100px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+ .nav-avatar-trigger #navProfileIcon{
+    display:none !important;
+}
+
+.user-greeting-text{
+    font-size:0.9rem;
+    font-weight:600;
+    color:#374151;
+    max-width:120px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
     .nav-chevron {
         font-size: 0.7rem;
         color: #6b7280;
@@ -1509,18 +1509,17 @@
     }
 
     /* ── Verified Badge ──────────────────────────────── */
-    .verified-badge {
-        background: #6366f1;
-        color: #fff;
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 20px;
-        margin-left: 6px;
-        vertical-align: middle;
-        letter-spacing: 0.04em;
-    }
+.verified-badge{
+    background:none;
+    width:auto;
+    height:auto;
+    margin-left:4px;
+}
 
+.verified-badge i{
+    color:#1d9bf0;
+    font-size:16px;
+}
     /* ── Sold Badge on Item Cards ────────────────────── */
     .item-image {
         position: relative;
@@ -2468,7 +2467,31 @@
 
         /* Items grid: single column */
         .items-grid { grid-template-columns: 1fr; gap: 0.9rem; }
-        .item-image { height: 180px; }
+
+        /* Two images side-by-side for each card (using the same image repeated) */
+        .item-image {
+            height: 180px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-auto-rows: 1fr;
+            gap: 6px;
+            padding: 8px;
+            background: linear-gradient(135deg, rgba(102,126,234,0.25) 0%, rgba(118,75,162,0.25) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .item-image::before,
+        .item-image::after {
+            content: '';
+            background-image: inherit;
+            background-size: cover;
+            background-position: center;
+            border-radius: 10px;
+        }
+
+        /* hide single-image styling while keeping icons/badges */
+        .item-image i { z-index: 2; }
 
         /* Hero */
         .hero { min-height: 60vw; }
@@ -2493,6 +2516,7 @@
         /* Chat action buttons: icon only */
         .chat-action-btn span { display: none; }
     }
+
 
     /* ── 3. VERY SMALL PHONES (≤360px) ──────────────────────────────── */
     @media (max-width: 360px) {
@@ -2541,3 +2565,158 @@
             .mobile-search-overlay { padding-top: max(0.75rem, env(safe-area-inset-top)); }
         }
     }
+
+
+    @media (max-width:768px){
+
+    .items-grid{
+        display:grid !important;
+        grid-template-columns:repeat(2,1fr);
+        gap:12px;
+    }
+
+    .item-card{
+        width:100% !important;
+        margin:0 !important;
+    }
+
+    .item-image{
+        height:120px !important;
+        object-fit:cover;
+    }
+
+    .item-content{
+        padding:8px !important;
+    }
+
+    .item-title{
+        font-size:14px !important;
+        line-height:1.3;
+    }
+
+    .item-description{
+        font-size:12px !important;
+        -webkit-line-clamp:2;
+        overflow:hidden;
+        display:-webkit-box;
+        -webkit-box-orient:vertical;
+    }
+
+    .item-price{
+        font-size:18px !important;
+    }
+
+    .seller-info{
+        font-size:11px !important;
+    }
+
+    .condition-badge{
+        font-size:10px !important;
+        padding:4px 8px !important;
+    }
+}
+
+
+
+
+/* Better Cards */
+body.dark-mode .item-card{
+    background:#1e293b;
+    border:1px solid #334155;
+    transition:all .3s ease;
+}   
+
+
+body.dark-mode .item-title{
+    color:#ffffff !important;
+}
+
+body.dark-mode .item-description{
+    color:#cbd5e1 !important;
+}
+
+body.dark-mode .seller-info{
+    color:#94a3b8 !important;
+}
+
+body.dark-mode .item-card:hover{
+    transform:translateY(-5px);
+    box-shadow:0 15px 30px rgba(0,0,0,.35);
+}
+
+.dark-mode-btn{
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-size:24px;
+    padding:8px;
+}
+
+/* Headings */
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3{
+    color:#fff;
+}
+
+/* Category Pills */
+body.dark-mode .pill{
+    background:#1f2937;
+    border:1px solid #374151;
+    color:#fff;
+}
+
+/* Price */
+body.dark-mode .item-price{
+    color:#22c55e;
+}
+
+/* Seller Info */
+body.dark-mode .seller-info{
+    color:#cbd5e1;
+}
+
+/* Search Bar */
+body.dark-mode .search-bar,
+body.dark-mode .search-container input{
+    background:#111827;
+    color:white;
+    border:1px solid #374151;
+}
+
+/* Section Background */
+body.dark-mode .browse-section,
+body.dark-mode .categories-section{
+    background:#111827;
+}
+
+
+.notification-badge{
+    transform:scale(1.1);
+}
+
+/* Main Background */
+body.dark-mode{
+    background:
+    linear-gradient(
+        180deg,
+        #020617,
+        #07152d,
+        #0f172a
+    );
+}
+
+
+body,
+.navbar,
+.item-card,
+.pill,
+input,
+button{
+    transition: all 0.3s ease;
+}
+
+
+.nav-avatar-trigger span:empty{
+    display:none !important;
+}

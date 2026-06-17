@@ -841,3 +841,14 @@ section h2 {
   cursor: pointer !important;
   pointer-events: auto !important;
 }
+
+
+
+
+.notification-badge:empty{
+    display:none !important;
+}
+
+.notification-badge{
+    display:none !important;
+}

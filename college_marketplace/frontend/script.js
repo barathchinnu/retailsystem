@@ -46,7 +46,7 @@ function updateAuthUI() {
     if (user) {
         const nameFirst = user.name ? user.name.split(' ')[0] : 'User';
         const pi = user.profileImage;
-        const badge = user.isVerified ? ' <span class="verified-badge" title="Verified KEC Student">✔ Verified</span>' : '';
+        const badge = user.isVerified? ' <span class="verified-badge"><i class="fas fa-check-circle"></i></span>': '';
 
         // Trigger button avatar
         const navImg  = document.getElementById('navProfileImage');
@@ -1712,3 +1712,32 @@ async function renderWishlistModal() {
         content.innerHTML = '<div class="wishlist-empty"><i class="fas fa-exclamation-circle"></i><p>Could not load wishlist.</p></div>';
     }
 }
+
+
+
+
+// Dark Mode Toggle
+const darkModeToggle = document.getElementById("darkModeToggle");
+
+// Load saved theme
+if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark-mode");
+    darkModeToggle.textContent = "☀️";
+} else {
+    darkModeToggle.textContent = "🌙";
+}
+
+// Toggle theme
+darkModeToggle.addEventListener("click", () => {
+
+    document.body.classList.toggle("dark-mode");
+
+    if (document.body.classList.contains("dark-mode")) {
+        localStorage.setItem("theme", "dark");
+        darkModeToggle.textContent = "☀️";
+    } else {
+        localStorage.setItem("theme", "light");
+        darkModeToggle.textContent = "🌙";
+    }
+
+});
