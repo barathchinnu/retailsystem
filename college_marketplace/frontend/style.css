@@ -2691,9 +2691,6 @@ body.dark-mode .categories-section{
 }
 
 
-.notification-badge{
-    transform:scale(1.1);
-}
 
 /* Main Background */
 body.dark-mode{
@@ -2714,9 +2711,4 @@ body,
 input,
 button{
     transition: all 0.3s ease;
-}
-
-
-.nav-avatar-trigger span:empty{
-    display:none !important;
 }
