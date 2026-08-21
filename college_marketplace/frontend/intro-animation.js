@@ -138,6 +138,7 @@
         }));
         logoBag.position.set(7, 4, -12);
         orbitGroup.add(logoBag);
+
     }
 
     // --- Particle System Builder ---
